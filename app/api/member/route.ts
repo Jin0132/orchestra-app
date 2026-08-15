@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSheetsClient, MEMBER_SHEET_NAMES } from "@/lib/sheets"
+import {
+  getHeaderIndexMap,
+  loadMemberSheet,
+  toA1Column,
+} from "@/lib/sheets"
 
 export const runtime = "nodejs"
 export const revalidate = 0
@@ -18,21 +22,6 @@ type EditableMemberFields = {
 type ApiMemberPayload = EditableMemberFields & {
   id: string
   updatedAt?: string
-}
-
-function normalizeHeaderName(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, "").replace(/_/g, "")
-}
-
-function toA1Column(colIndex1Based: number): string {
-  let n = colIndex1Based
-  let out = ""
-  while (n > 0) {
-    const r = (n - 1) % 26
-    out = String.fromCharCode(65 + r) + out
-    n = Math.floor((n - 1) / 26)
-  }
-  return out
 }
 
 function nowYmdHm(): string {
@@ -56,39 +45,6 @@ function toBoolean(v: unknown): boolean {
   return s === "1" || s === "true" || s === "on"
 }
 
-async function loadSheetRows() {
-  const { sheets, spreadsheetId } = await getSheetsClient()
-  for (const sheetName of MEMBER_SHEET_NAMES) {
-    try {
-      const range = `'${sheetName}'!A1:ZZ1000`
-      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range })
-      const rows = (res.data.values ?? []) as unknown[][]
-      return { sheets, spreadsheetId, rows, sheetName }
-    } catch (e) {
-      const status = (e as { status?: number })?.status
-      const code = (e as { code?: number })?.code
-      if (status !== 404 && code !== 404) throw e
-    }
-  }
-  throw new Error("Member sheet not found. Expected one of: Member page, Members")
-}
-
-function getHeaderIndexMap(headerRow: string[]) {
-  const normalized = headerRow.map((h) => normalizeHeaderName(String(h ?? "")))
-  const indexOf = (name: string) => normalized.indexOf(normalizeHeaderName(name))
-  return {
-    id: indexOf("id"),
-    isPublic: indexOf("isPublic"),
-    name: indexOf("name"),
-    part: indexOf("part"),
-    email: indexOf("email"),
-    profile: indexOf("profile"),
-    instagram: indexOf("instagram"),
-    photoUrl: indexOf("photoUrl"),
-    updatedAt: indexOf("updatedAt"),
-  }
-}
-
 function requiredIndexMissing(m: ReturnType<typeof getHeaderIndexMap>): string | null {
   if (m.id < 0) return "id"
   if (m.isPublic < 0) return "isPublic"
@@ -109,7 +65,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "id is required" }, { status: 400 })
     }
 
-    const { rows } = await loadSheetRows()
+    const { rows } = await loadMemberSheet()
     if (rows.length < 2) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
@@ -164,11 +120,11 @@ export async function PATCH(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 })
     }
-    if (!body.member) {
+    if (!body.member || typeof body.member !== "object") {
       return NextResponse.json({ error: "member is required" }, { status: 400 })
     }
 
-    const { sheets, spreadsheetId, rows, sheetName } = await loadSheetRows()
+    const { sheets, spreadsheetId, rows, sheetName } = await loadMemberSheet()
     if (rows.length < 2) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
@@ -189,44 +145,61 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
 
+    const current = dataRows[rowIndex0] ?? []
     const rowNumber = rowIndex0 + 2
     const updatedAt = nowYmdHm()
     const incoming = body.member
 
-    const updates: { range: string; values: string[][] }[] = [
-      {
-        range: `'${sheetName}'!${toA1Column(idx.isPublic + 1)}${rowNumber}`,
-        values: [[toOnOff(incoming.isPublic)]],
-      },
-      {
-        range: `'${sheetName}'!${toA1Column(idx.name + 1)}${rowNumber}`,
-        values: [[String(incoming.name ?? "").trim()]],
-      },
-      {
-        range: `'${sheetName}'!${toA1Column(idx.part + 1)}${rowNumber}`,
-        values: [[String(incoming.part ?? "").trim()]],
-      },
-      {
-        range: `'${sheetName}'!${toA1Column(idx.email + 1)}${rowNumber}`,
-        values: [[String(incoming.email ?? "").trim()]],
-      },
-      {
-        range: `'${sheetName}'!${toA1Column(idx.profile + 1)}${rowNumber}`,
-        values: [[String(incoming.profile ?? "").trim()]],
-      },
-      {
-        range: `'${sheetName}'!${toA1Column(idx.instagram + 1)}${rowNumber}`,
-        values: [[String(incoming.instagram ?? "").trim()]],
-      },
-      {
-        range: `'${sheetName}'!${toA1Column(idx.photoUrl + 1)}${rowNumber}`,
-        values: [[String(incoming.photoUrl ?? "").trim()]],
-      },
-      {
-        range: `'${sheetName}'!${toA1Column(idx.updatedAt + 1)}${rowNumber}`,
-        values: [[updatedAt]],
-      },
+    const fieldMap: { key: keyof EditableMemberFields; col: number; serialize: (v: unknown) => string }[] = [
+      { key: "isPublic", col: idx.isPublic, serialize: (v) => toOnOff(v) },
+      { key: "name", col: idx.name, serialize: (v) => String(v ?? "").trim() },
+      { key: "part", col: idx.part, serialize: (v) => String(v ?? "").trim() },
+      { key: "email", col: idx.email, serialize: (v) => String(v ?? "").trim() },
+      { key: "profile", col: idx.profile, serialize: (v) => String(v ?? "").trim() },
+      { key: "instagram", col: idx.instagram, serialize: (v) => String(v ?? "").trim() },
+      { key: "photoUrl", col: idx.photoUrl, serialize: (v) => String(v ?? "").trim() },
     ]
+
+    const updates: { range: string; values: string[][] }[] = []
+    const result: EditableMemberFields = {
+      isPublic: toBoolean(current[idx.isPublic]),
+      name: String(current[idx.name] ?? ""),
+      part: String(current[idx.part] ?? ""),
+      email: String(current[idx.email] ?? ""),
+      profile: String(current[idx.profile] ?? ""),
+      instagram: String(current[idx.instagram] ?? ""),
+      photoUrl: String(current[idx.photoUrl] ?? ""),
+    }
+
+    for (const { key, col, serialize } of fieldMap) {
+      if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue
+      if (col < 0) continue
+      const value = serialize(incoming[key])
+      updates.push({
+        range: `'${sheetName}'!${toA1Column(col + 1)}${rowNumber}`,
+        values: [[value]],
+      })
+      if (key === "isPublic") {
+        result.isPublic = toBoolean(incoming.isPublic)
+      } else if (key === "name") {
+        result.name = value
+      } else if (key === "part") {
+        result.part = value
+      } else if (key === "email") {
+        result.email = value
+      } else if (key === "profile") {
+        result.profile = value
+      } else if (key === "instagram") {
+        result.instagram = value
+      } else if (key === "photoUrl") {
+        result.photoUrl = value
+      }
+    }
+
+    updates.push({
+      range: `'${sheetName}'!${toA1Column(idx.updatedAt + 1)}${rowNumber}`,
+      values: [[updatedAt]],
+    })
 
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId,
@@ -236,17 +209,7 @@ export async function PATCH(request: NextRequest) {
       },
     })
 
-    const payload: ApiMemberPayload = {
-      id,
-      isPublic: toBoolean(incoming.isPublic),
-      name: String(incoming.name ?? "").trim(),
-      part: String(incoming.part ?? "").trim(),
-      email: String(incoming.email ?? "").trim(),
-      profile: String(incoming.profile ?? "").trim(),
-      instagram: String(incoming.instagram ?? "").trim(),
-      photoUrl: String(incoming.photoUrl ?? "").trim(),
-      updatedAt,
-    }
+    const payload: ApiMemberPayload = { id, ...result, updatedAt }
     return NextResponse.json(payload)
   } catch (e) {
     console.error("Member PATCH error:", e)

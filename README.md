@@ -2,145 +2,155 @@
 
 Arsis Chamber Orchestra の**運営ポータル**です。ダッシュボード、セッティング表、エキストラ契約、団員情報を一つの画面で扱います。公開サイト（`arsis-site`）とは別アプリで、団の内部運用向けです。
 
-技術スタックは **Next.js 16 / React 19 / TypeScript / Tailwind CSS 4 / Radix UI（shadcn）** です。団員マスタは **Google スプレッドシート**、写真は **Vercel Blob** です。PWA としてインストールできます。
+| 項目 | 内容 |
+|---|---|
+| スタック | Next.js 16 / React 19 / TypeScript / Tailwind CSS 4 / Radix UI（shadcn） |
+| 団員マスタ | Google スプレッドシート |
+| 写真 | Vercel Blob |
+| その他データ | ブラウザ localStorage（ダッシュボード・座席・契約） |
+| PWA | 本番ビルド時のみ有効 |
+| 任意の保護 | `PORTAL_ACCESS_SECRET` で運営画面をパスワード保護 |
 
 スプレッドシートの詳細手順は [docs/SPREADSHEET_SETUP.md](./docs/SPREADSHEET_SETUP.md) を参照してください。
 
 ---
 
-## 1. プロジェクト概要
+## 1. 画面構成
 
-運営が次をまとめて行うための SPA です。サイドバーで画面を切り替えます。
+サイドバーで画面を切り替えます（`app/page.tsx`）。`PORTAL_ACCESS_SECRET` 設定時は入室パスワードが必要です。
 
-| 画面 | 内容 |
-|---|---|
-| ダッシュボード | 公演情報、練習日程、エキストラ枠（ブラウザ localStorage） |
-| セッティング表 | 舞台上の座席をドラッグ配置し、画像として書き出し |
-| エキストラ契約 | 契約ステータスの一覧・検索（現状は画面内の初期データ） |
-| 団員情報 | スプレッドシートと同期した団員マスタ |
-| `/mypage` | 団員本人がプロフィールと写真を更新するページ |
+| 画面 / パス | 内容 | データの保存先 |
+|---|---|---|
+| ダッシュボード | 公演情報、練習日程、エキストラ枠 | `localStorage`（`arsis-dashboard-data`） |
+| セッティング表 | 舞台上の座席をドラッグ配置し、画像書き出し | `localStorage`（`seating-state-v1`） |
+| エキストラ契約 | 契約ステータスの一覧・検索・追加・CSV | `localStorage`（`arsis-contracts-v1`） |
+| 団員情報 | 検索・追加・編集・削除・CSV・写真 | Google スプレッドシート |
+| `/mypage?id=団員ID` | 本人のプロフィール・写真更新（パスワード不要） | 同上（更新可能な列は限定） |
+
+ダッシュボード上の「エキストラ枠」と「エキストラ契約」画面は**別系統**です。団員マスタだけがスプレッドシートを正とします。
 
 ---
 
-## 2. フォルダ・ファイル構造
+## 2. フォルダ構成
 
 ```
 orchestra-app-1/
-├── app/                      # 画面・API
-├── components/               # 機能画面と UI 部品
-│   ├── member-portal/        # 団員情報
-│   └── ui/                   # shadcn/Radix 部品
-├── lib/                      # Sheets 連携など
-├── hooks/
+├── app/
+│   ├── page.tsx                 # 運営ポータル本体（4画面）
+│   ├── mypage/page.tsx          # 団員マイページ
+│   ├── layout.tsx
+│   └── api/
+│       ├── auth/                # ポータル入室セッション
+│       ├── sheets/members/      # 団員 CRUD（保護対象）
+│       ├── member/              # マイページ用 GET / PATCH
+│       └── upload/              # 写真アップロード（Vercel Blob）
+├── components/
+│   ├── portal-auth-gate.tsx
+│   ├── sidebar.tsx / dashboard.tsx / seating-chart.tsx / contracts.tsx
+│   ├── member-portal/
+│   └── ui/
+├── lib/
+│   ├── sheets.ts                # Sheets 認証・ヘッダー基準の読み書き
+│   ├── api-auth.ts              # ポータル認証
+│   └── upload.ts                # アップロード検証
+├── hooks/use-media-query.ts
 ├── docs/SPREADSHEET_SETUP.md
 └── public/manifest.json
 ```
 
-### UI・画面関連
+### 主な API
 
-| パス | 役割 |
-|---|---|
-| `app/layout.tsx` | ルートレイアウト。PWA メタ、Toaster、Vercel Analytics |
-| `app/page.tsx` | サイドバー付き本体。dashboard / seating / contracts / portal |
-| `app/mypage/page.tsx` | 団員マイページ（`?id=` で対象団員を指定） |
-| `app/globals.css` | グローバルスタイル |
-| `components/sidebar.tsx` | ナビ（モバイルはドロワー） |
-| `components/dashboard.tsx` | 公演・練習・カウントダウン。`arsis-dashboard-data` に保存 |
-| `components/seating-chart.tsx` | 座席配置。`html2canvas` で書き出し |
-| `components/contracts.tsx` | エキストラ契約の一覧・追加・検索 |
-| `components/member-portal/index.tsx` | 団員一覧、新規追加、詳細、CSV |
-| `components/member-portal/new-member-form.tsx` | 新規団員フォーム |
-| `components/member-portal/member-detail-card.tsx` | 団員詳細・写真・公開設定 |
-| `components/ui/*` | ボタン、ダイアログ、タブなどの共通部品 |
-
-### ロジック・データ処理関連
-
-| パス | 役割 |
-|---|---|
-| `lib/sheets.ts` | サービスアカウント認証と Member 行の列定義 |
-| `app/api/sheets/members/route.ts` | 団員の一覧取得・追加・更新・削除 |
-| `app/api/member/route.ts` | マイページ用の 1 件取得（GET）と部分更新（PATCH） |
-| `app/api/upload/photo/route.ts` | 団員写真を Vercel Blob へ保存 |
-| `app/api/upload/route.ts` | 汎用ファイルアップロード |
-| `components/member-portal/types.ts` | 団員・練習日の型、Sheets ヘッダー行 |
-| `lib/utils.ts` | `cn()` などクラス結合 |
-
-ダッシュボードとセッティング表は **localStorage**（`arsis-dashboard-data` / `seating-state-v1`）です。団員マスタだけスプレッドシートが正です。
-
-### 設定・環境関連
-
-| パス | 役割 |
-|---|---|
-| `docs/SPREADSHEET_SETUP.md` | サービスアカウントとシート ID の設定手順 |
-| `next.config.mjs` | PWA プラグイン、画像最適化オフ |
-| `public/manifest.json` | PWA マニフェスト |
-| `tsconfig.json` | `@/*` パスエイリアス |
-| `components.json` | shadcn/ui 設定 |
-| `package.json` | `dev` / `build` / `start` / `lint`（webpack） |
-
-環境変数（`.env.local`、Git 管理外）:
-
-| 変数 | 用途 |
-|---|---|
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | サービスアカウント鍵（JSON を 1 行の文字列で） |
-| `GOOGLE_SPREADSHEET_ID` | スプレッドシート ID |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob（`@vercel/blob` が参照） |
-
-シート名は `Member page` または `Members` を探します。
+| パス | 用途 | 備考 |
+|---|---|---|
+| `GET/POST /api/auth` | 入室状態確認・パスワードログイン | `DELETE` でログアウト |
+| `GET/POST/PATCH/DELETE /api/sheets/members` | 運営側の団員 CRUD | `PORTAL_ACCESS_SECRET` 設定時は要ログイン |
+| `GET/PATCH /api/member` | マイページ用 | ID 指定。ポータルパスワードは不要 |
+| `POST /api/upload/photo` | 運営側の写真 | 要ログイン（秘密設定時）・画像のみ・5MB 以下 |
+| `POST /api/upload` | マイページ写真 | 画像のみ・5MB 以下 |
 
 ---
 
-## 3. 主要機能
+## 3. 環境変数
 
-- 次公演までの日数、会場、練習時間の編集
-- 練習日程の追加・削除（団員のエキストラ希望と紐付け）
-- 楽器別の座席配置、パン・ズーム、画像書き出し
-- エキストラ契約のステータス（確認済 / 未確認 / 辞退 / 下書き）
-- 団員の検索、パートフィルタ、新規追加、詳細編集、削除
-- 写真アップロード（圧縮して Blob へ）とシートの `photoUrl` 更新
-- 公開フラグ（公式サイト側で使う `isPublic`）
-- `/mypage?id=...` による本人更新（ID は localStorage にも保持）
-- PWA（本番ビルド時）
+プロジェクトルートの `.env.local`（Git 管理外）に設定します。
+
+| 変数 | 必須 | 用途 |
+|---|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | 団員機能 | サービスアカウント鍵（JSON を 1 行） |
+| `GOOGLE_SPREADSHEET_ID` | 団員機能 | 対象スプレッドシート ID |
+| `BLOB_READ_WRITE_TOKEN` | 写真 | Vercel Blob |
+| `PORTAL_ACCESS_SECRET` | 任意 | 設定すると運営ポータルと団員 CRUD API をパスワード保護 |
+
+**シート名**: `Member page` → `Members` の順で探します（完全一致）。
+
+**推奨ヘッダー（1 行目）**:
+
+```
+id,isPublic,name,part,partRank,role,email,status,profile,instagram,extraRequestStatus,requestedPracticeIds,instrument,joinYear,attendance,photoUrl,updatedAt
+```
+
+読み書きは**列名ベース**です。列の順序を変えても動作しますが、ヘッダー名は揃えてください。
+
+サービスアカウントの `client_email` を対象スプレッドシートに**編集者**として共有してください。
 
 ---
 
-## 4. セットアップ・実行手順
-
-### 前提
-
-- Node.js
-- Google Cloud のサービスアカウント（Sheets 編集権限）
-- 対象スプレッドシートをサービスアカウントのメールと共有
-
-### 1. 依存関係
+## 4. セットアップ・実行
 
 ```bash
 cd orchestra-app-1
 npm install
 ```
 
-### 2. 環境変数
-
-プロジェクトルートに `.env.local` を作成します。書き方の詳細は `docs/SPREADSHEET_SETUP.md` です。
+`.env.local` の例:
 
 ```env
 GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 GOOGLE_SPREADSHEET_ID=あなたのスプレッドシートID
+BLOB_READ_WRITE_TOKEN=vercel_blob_...
+# 任意: 運営ポータルをパスワード保護
+# PORTAL_ACCESS_SECRET=十分な長さのランダム文字列
 ```
-
-写真アップロードを使う場合は Vercel Blob の `BLOB_READ_WRITE_TOKEN` も設定します。
-
-### 3. 開発サーバー
 
 ```bash
 npm run dev
 ```
 
-[http://localhost:3000](http://localhost:3000) が運営ポータル、団員本人は `/mypage?id=団員ID` です。
-
-### 4. 本番ビルド
+- 運営ポータル: [http://localhost:3000](http://localhost:3000)
+- 団員マイページ: [http://localhost:3000/mypage?id=団員ID](http://localhost:3000/mypage?id=団員ID)
 
 ```bash
 npm run build
 npm start
 ```
+
+`.env.local` 変更後は開発サーバーを再起動してください。
+
+---
+
+## 5. 主要機能
+
+- 次公演までの日数・会場・練習時間の編集
+- 練習日程の追加・削除（団員のエキストラ希望と紐付け）
+- 楽器別の座席配置、パン・ズーム、画像書き出し
+- エキストラ契約のステータス管理と CSV エクスポート（ブラウザ保存）
+- 団員の検索、パートフィルタ、新規追加、詳細編集、削除、CSV
+- 写真アップロードと `photoUrl` 更新
+- 公開フラグ `isPublic`
+- `/mypage?id=...` による本人更新
+- PWA（本番ビルド時）
+- 任意のポータルパスワード保護
+
+---
+
+## 6. セキュリティ上の注意
+
+- `PORTAL_ACCESS_SECRET` 未設定時は、団員 API が URL を知る人から呼べます（内部ネットワーク / Vercel Deployment Protection 前提）。
+- `/mypage` と `/api/member` は団員 ID を知っていれば更新可能です（security by obscurity）。本番で厳格に守る場合は別途認証が必要です。
+- サービスアカウント鍵と Blob トークンは Git に含めないでください。
+
+---
+
+## 7. 関連ドキュメント
+
+- [docs/SPREADSHEET_SETUP.md](./docs/SPREADSHEET_SETUP.md) — サービスアカウント・シート ID・トラブルシュート

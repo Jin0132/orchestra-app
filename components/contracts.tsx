@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -57,16 +57,7 @@ interface Contract {
   notes: string
 }
 
-const initialContracts: Contract[] = [
-  { id: "c1", name: "田中 美咲", email: "tanaka@example.com", phone: "090-1234-5678", instrument: "ヴィオラ", concert: "第42回定期演奏会", concertDate: "2026-03-23", rehearsals: 3, fee: 35000, status: "confirmed", createdAt: "2026-02-01", notes: "前回も出演" },
-  { id: "c2", name: "鈴木 健太", email: "suzuki@example.com", phone: "080-2345-6789", instrument: "ホルン", concert: "第42回定期演奏会", concertDate: "2026-03-23", rehearsals: 4, fee: 40000, status: "pending", createdAt: "2026-02-05", notes: "" },
-  { id: "c3", name: "山田 優子", email: "yamada@example.com", phone: "070-3456-7890", instrument: "オーボエ", concert: "第42回定期演奏会", concertDate: "2026-03-23", rehearsals: 3, fee: 35000, status: "confirmed", createdAt: "2026-02-03", notes: "楽器持参" },
-  { id: "c4", name: "佐藤 大輔", email: "sato@example.com", phone: "090-4567-8901", instrument: "ティンパニ", concert: "第42回定期演奏会", concertDate: "2026-03-23", rehearsals: 2, fee: 30000, status: "pending", createdAt: "2026-02-10", notes: "" },
-  { id: "c5", name: "村上 理恵", email: "murakami@example.com", phone: "080-5678-9012", instrument: "ヴァイオリン", concert: "第42回定期演奏会", concertDate: "2026-03-23", rehearsals: 4, fee: 40000, status: "declined", createdAt: "2026-02-08", notes: "スケジュール不可" },
-  { id: "c6", name: "西村 拓海", email: "nishimura@example.com", phone: "070-6789-0123", instrument: "トランペット", concert: "第43回定期演奏会", concertDate: "2026-06-15", rehearsals: 3, fee: 35000, status: "draft", createdAt: "2026-02-15", notes: "" },
-  { id: "c7", name: "小川 さくら", email: "ogawa@example.com", phone: "090-7890-1234", instrument: "ファゴット", concert: "第42回定期演奏会", concertDate: "2026-03-23", rehearsals: 3, fee: 35000, status: "confirmed", createdAt: "2026-02-02", notes: "" },
-  { id: "c8", name: "松井 裕之", email: "matsui@example.com", phone: "080-8901-2345", instrument: "コントラバス", concert: "特別演奏会 2026", concertDate: "2026-09-10", rehearsals: 5, fee: 50000, status: "draft", createdAt: "2026-02-20", notes: "要相談" },
-]
+const STORAGE_KEY = "arsis-contracts-v1"
 
 const statusConfig: Record<ContractStatus, { label: string; icon: React.ElementType; className: string }> = {
   confirmed: { label: "確認済", icon: CheckCircle2, className: "bg-chart-3/15 text-chart-3 border-chart-3/30" },
@@ -75,19 +66,65 @@ const statusConfig: Record<ContractStatus, { label: string; icon: React.ElementT
   draft: { label: "下書き", icon: FileText, className: "bg-muted text-muted-foreground border-border" },
 }
 
+function loadContracts(): Contract[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? (parsed as Contract[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveContracts(list: Contract[]) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  } catch {
+    // ignore quota errors
+  }
+}
+
+function escapeCsv(val: string | number): string {
+  const v = String(val ?? "")
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+}
+
 export function Contracts() {
-  const [contracts, setContracts] = useState<Contract[]>(initialContracts)
+  const [contracts, setContracts] = useState<Contract[]>([])
+  const [hydrated, setHydrated] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [concertFilter, setConcertFilter] = useState<string>("all")
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false)
   const [newContract, setNewContract] = useState({
-    name: "", email: "", phone: "", instrument: "", concert: "第42回定期演奏会",
-    rehearsals: 3, fee: 35000, notes: "",
+    name: "",
+    email: "",
+    phone: "",
+    instrument: "",
+    concert: "第42回定期演奏会",
+    concertDate: "",
+    rehearsals: 3,
+    fee: 35000,
+    notes: "",
   })
 
+  useEffect(() => {
+    setContracts(loadContracts())
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    saveContracts(contracts)
+  }, [contracts, hydrated])
+
   const filteredContracts = contracts.filter((c) => {
-    const matchSearch = c.name.includes(searchQuery) || c.instrument.includes(searchQuery) || c.email.includes(searchQuery)
+    const matchSearch =
+      c.name.includes(searchQuery) ||
+      c.instrument.includes(searchQuery) ||
+      c.email.includes(searchQuery)
     const matchStatus = statusFilter === "all" || c.status === statusFilter
     const matchConcert = concertFilter === "all" || c.concert === concertFilter
     return matchSearch && matchStatus && matchConcert
@@ -96,20 +133,86 @@ export function Contracts() {
   const concerts = Array.from(new Set(contracts.map((c) => c.concert)))
 
   const handleAddContract = () => {
+    if (!newContract.name.trim()) {
+      window.alert("氏名を入力してください")
+      return
+    }
     const contract: Contract = {
       id: `c${Date.now()}`,
-      ...newContract,
-      concertDate: "2026-03-23",
+      name: newContract.name.trim(),
+      email: newContract.email.trim(),
+      phone: newContract.phone.trim(),
+      instrument: newContract.instrument.trim(),
+      concert: newContract.concert,
+      concertDate: newContract.concertDate || new Date().toISOString().slice(0, 10),
+      rehearsals: newContract.rehearsals,
+      fee: newContract.fee,
+      notes: newContract.notes,
       status: "draft",
       createdAt: new Date().toISOString().split("T")[0],
     }
     setContracts((prev) => [contract, ...prev])
     setIsNewDialogOpen(false)
-    setNewContract({ name: "", email: "", phone: "", instrument: "", concert: "第42回定期演奏会", rehearsals: 3, fee: 35000, notes: "" })
+    setNewContract({
+      name: "",
+      email: "",
+      phone: "",
+      instrument: "",
+      concert: "第42回定期演奏会",
+      concertDate: "",
+      rehearsals: 3,
+      fee: 35000,
+      notes: "",
+    })
   }
 
   const handleStatusChange = (id: string, status: ContractStatus) => {
-    setContracts((prev) => prev.map((c) => c.id === id ? { ...c, status } : c))
+    setContracts((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
+  }
+
+  const handleExportCsv = () => {
+    if (filteredContracts.length === 0) {
+      window.alert("出力対象の契約がありません。")
+      return
+    }
+    const header = [
+      "id",
+      "氏名",
+      "メール",
+      "電話",
+      "楽器",
+      "公演",
+      "公演日",
+      "練習回数",
+      "謝礼",
+      "ステータス",
+      "作成日",
+      "メモ",
+    ]
+    const rows = filteredContracts.map((c) => [
+      c.id,
+      c.name,
+      c.email,
+      c.phone,
+      c.instrument,
+      c.concert,
+      c.concertDate,
+      c.rehearsals,
+      c.fee,
+      statusConfig[c.status].label,
+      c.createdAt,
+      c.notes,
+    ])
+    const csv = [header, ...rows].map((cols) => cols.map(escapeCsv).join(",")).join("\r\n")
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `contracts-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const summary = {
@@ -124,10 +227,16 @@ export function Contracts() {
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">エキストラ契約管理</h2>
-          <p className="text-sm text-muted-foreground mt-1">エキストラ奏者との契約状況を一元管理</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            エキストラ奏者との契約状況を一元管理（このブラウザの localStorage に保存）
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground">
+          <Button
+            variant="outline"
+            className="border-border text-muted-foreground hover:text-foreground"
+            onClick={handleExportCsv}
+          >
             <Download className="w-4 h-4 mr-2" />
             エクスポート
           </Button>
@@ -144,32 +253,76 @@ export function Contracts() {
               </DialogHeader>
               <div className="flex flex-col gap-4 mt-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="name" className="text-foreground">氏名</Label>
-                  <Input id="name" value={newContract.name} onChange={(e) => setNewContract((p) => ({ ...p, name: e.target.value }))} placeholder="山田 太郎" className="bg-secondary/50 border-border" />
+                  <Label htmlFor="name" className="text-foreground">
+                    氏名
+                  </Label>
+                  <Input
+                    id="name"
+                    value={newContract.name}
+                    onChange={(e) => setNewContract((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="山田 太郎"
+                    className="bg-secondary/50 border-border"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="email" className="text-foreground">メール</Label>
-                    <Input id="email" type="email" value={newContract.email} onChange={(e) => setNewContract((p) => ({ ...p, email: e.target.value }))} placeholder="mail@example.com" className="bg-secondary/50 border-border" />
+                    <Label htmlFor="email" className="text-foreground">
+                      メール
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newContract.email}
+                      onChange={(e) => setNewContract((p) => ({ ...p, email: e.target.value }))}
+                      placeholder="mail@example.com"
+                      className="bg-secondary/50 border-border"
+                    />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="phone" className="text-foreground">電話番号</Label>
-                    <Input id="phone" value={newContract.phone} onChange={(e) => setNewContract((p) => ({ ...p, phone: e.target.value }))} placeholder="090-0000-0000" className="bg-secondary/50 border-border" />
+                    <Label htmlFor="phone" className="text-foreground">
+                      電話番号
+                    </Label>
+                    <Input
+                      id="phone"
+                      value={newContract.phone}
+                      onChange={(e) => setNewContract((p) => ({ ...p, phone: e.target.value }))}
+                      placeholder="090-0000-0000"
+                      className="bg-secondary/50 border-border"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="instrument" className="text-foreground">楽器</Label>
-                    <Input id="instrument" value={newContract.instrument} onChange={(e) => setNewContract((p) => ({ ...p, instrument: e.target.value }))} placeholder="ヴァイオリン" className="bg-secondary/50 border-border" />
+                    <Label htmlFor="instrument" className="text-foreground">
+                      楽器
+                    </Label>
+                    <Input
+                      id="instrument"
+                      value={newContract.instrument}
+                      onChange={(e) => setNewContract((p) => ({ ...p, instrument: e.target.value }))}
+                      placeholder="ヴァイオリン"
+                      className="bg-secondary/50 border-border"
+                    />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="fee" className="text-foreground">謝礼 (円)</Label>
-                    <Input id="fee" type="number" value={newContract.fee} onChange={(e) => setNewContract((p) => ({ ...p, fee: Number(e.target.value) }))} className="bg-secondary/50 border-border" />
+                    <Label htmlFor="fee" className="text-foreground">
+                      謝礼 (円)
+                    </Label>
+                    <Input
+                      id="fee"
+                      type="number"
+                      value={newContract.fee}
+                      onChange={(e) => setNewContract((p) => ({ ...p, fee: Number(e.target.value) }))}
+                      className="bg-secondary/50 border-border"
+                    />
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label className="text-foreground">公演</Label>
-                  <Select value={newContract.concert} onValueChange={(v) => setNewContract((p) => ({ ...p, concert: v }))}>
+                  <Select
+                    value={newContract.concert}
+                    onValueChange={(v) => setNewContract((p) => ({ ...p, concert: v }))}
+                  >
                     <SelectTrigger className="bg-secondary/50 border-border">
                       <SelectValue />
                     </SelectTrigger>
@@ -180,7 +333,22 @@ export function Contracts() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={handleAddContract} className="mt-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="concertDate" className="text-foreground">
+                    公演日
+                  </Label>
+                  <Input
+                    id="concertDate"
+                    type="date"
+                    value={newContract.concertDate}
+                    onChange={(e) => setNewContract((p) => ({ ...p, concertDate: e.target.value }))}
+                    className="bg-secondary/50 border-border"
+                  />
+                </div>
+                <Button
+                  onClick={handleAddContract}
+                  className="mt-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                >
                   契約を作成
                 </Button>
               </div>
@@ -189,7 +357,6 @@ export function Contracts() {
         </div>
       </header>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "契約総数", value: summary.total, color: "text-foreground" },
@@ -206,7 +373,6 @@ export function Contracts() {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -237,13 +403,14 @@ export function Contracts() {
           <SelectContent>
             <SelectItem value="all">全公演</SelectItem>
             {concerts.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Contract List */}
       <Card className="border border-border bg-card overflow-hidden">
         <CardHeader className="pb-0">
           <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -259,12 +426,24 @@ export function Contracts() {
             <table className="w-full">
               <thead>
                 <tr className="border-y border-border bg-secondary/40">
-                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">奏者</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">楽器</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">公演</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">練習回数</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">謝礼</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">ステータス</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    奏者
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    楽器
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    公演
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    練習回数
+                  </th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    謝礼
+                  </th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    ステータス
+                  </th>
                   <th className="px-4 py-3 w-10"></th>
                 </tr>
               </thead>
@@ -279,10 +458,12 @@ export function Contracts() {
                           <p className="text-sm font-medium text-foreground">{contract.name}</p>
                           <div className="flex items-center gap-3 mt-0.5">
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Mail className="w-3 h-3" />{contract.email}
+                              <Mail className="w-3 h-3" />
+                              {contract.email}
                             </span>
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Phone className="w-3 h-3" />{contract.phone}
+                              <Phone className="w-3 h-3" />
+                              {contract.phone}
                             </span>
                           </div>
                         </div>
@@ -305,20 +486,27 @@ export function Contracts() {
                       <td className="px-4 py-4">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            >
                               <MoreHorizontal className="w-4 h-4" />
                               <span className="sr-only">アクション</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleStatusChange(contract.id, "confirmed")}>
-                              <CheckCircle2 className="w-4 h-4 mr-2" />確認済にする
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              確認済にする
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleStatusChange(contract.id, "pending")}>
-                              <Clock className="w-4 h-4 mr-2" />未確認にする
+                              <Clock className="w-4 h-4 mr-2" />
+                              未確認にする
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleStatusChange(contract.id, "declined")}>
-                              <XCircle className="w-4 h-4 mr-2" />辞退にする
+                              <XCircle className="w-4 h-4 mr-2" />
+                              辞退にする
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -331,7 +519,7 @@ export function Contracts() {
           </div>
           {filteredContracts.length === 0 && (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              該当する契約がありません
+              {hydrated ? "該当する契約がありません。新規契約から追加できます。" : "読み込み中…"}
             </div>
           )}
         </CardContent>

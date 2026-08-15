@@ -7,7 +7,7 @@
 ## このドキュメントの場所
 
 - **パス**: プロジェクト内の `docs/SPREADSHEET_SETUP.md`
-- **フルパス例**: `c:\Users\User\Desktop\Orchestra-App\docs\SPREADSHEET_SETUP.md`
+- **フルパス例**: `orchestra-app-1/docs/SPREADSHEET_SETUP.md`
 - **開き方**:
   - Cursor / VS Code の左のファイル一覧で `docs` フォルダ → `SPREADSHEET_SETUP.md` をクリック
   - またはエクスプローラーで上記フォルダを開き、メモ帳などで `SPREADSHEET_SETUP.md` を開く
@@ -20,7 +20,7 @@
 
 プロジェクトの**ルートフォルダ**（`package.json` があるフォルダ）に、`.env.local` という名前のファイルを作成します。
 
-- 例: `c:\Users\User\Desktop\Orchestra-App\.env.local`
+- 例: `orchestra-app-1/.env.local`
 - このファイルは git に含めないでください（秘密鍵が含まれるため）。通常、`.gitignore` に `.env.local` が含まれていれば自動的に無視されます。
 
 ### 6-2. GOOGLE_SERVICE_ACCOUNT_JSON の設定
@@ -124,7 +124,7 @@ Google Sheets API 用のパッケージ（`googleapis`）を使うため、プ�
 | 団員一覧がずっと「読み込み中」 | ブラウザの開発者ツール（F12）の「ネットワーク」で `/api/sheets/members` が 500 になっていないか確認。500 の場合はサーバー側ログ（ターミナル）のエラー内容を確認。 |
 | 500 エラー / 「GOOGLE_SERVICE_ACCOUNT_JSON is not set」 | `.env.local` がプロジェクトルートにあるか、変数名のスペルが正しいか確認。保存後、**ターミナルで `npm run dev` を一度止めて再実行**してください。 |
 | 403 / 権限エラー | スプレッドシートを、サービスアカウントのメール（JSON の `client_email`）で「編集者」として共有しているか確認。 |
-| シートが見つからない | シート名が **「Member page」**（大文字・小文字・スペース含め）と一致しているか確認。 |
+| シートが見つからない | シート名が **「Member page」** または **「Members」**（完全一致）か確認。あわせてスプレッドシート ID とサービスアカウント共有（編集者）も確認。共有不足は Google 側で 404 になることがあります。 |
 | ポータルに団員が一部しか出ない | 下記「次の手順」「団員がすべて見られない場合」を参照。 |
 
 ---
@@ -133,7 +133,7 @@ Google Sheets API 用のパッケージ（`googleapis`）を使うため、プ�
 
 1. **スプレッドシートの 1 行目**
    - 必ず**ヘッダー行**にしてください（列順はアプリの「スプレッドシート設定」カードに表示されているものと同じ）。
-   - 現在の並び: `id, isPublic, name, part, partRank, role, email, status, profile, instagram, extraRequestStatus, requestedPracticeIds, instrument, joinYear, attendance`
+   - 現在の並び: `id, isPublic, name, part, partRank, role, email, status, profile, instagram, extraRequestStatus, requestedPracticeIds, instrument, joinYear, attendance, photoUrl, updatedAt`
 
 2. **データは 2 行目から**
    - 団員のデータは **2 行目以降**に 1 人 1 行で入力します。1 行目がヘッダーでないと、先頭行が団員として読み込まれたり、列がずれて正しく表示されません。

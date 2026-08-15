@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
+import { unauthorizedIfNeeded } from "@/lib/api-auth"
 import {
-  getSheetsClient,
-  MEMBER_SHEET_NAMES,
+  findDataRowIndexById,
+  getHeaderIndexMap,
   HEADERS,
+  loadMemberSheet,
+  memberRowToValuesByHeader,
+  rowToMemberRowByHeader,
+  toA1Column,
   type MemberRow,
 } from "@/lib/sheets"
 
@@ -22,9 +27,7 @@ export type ApiMember = {
   isPublic?: boolean
   extraRequestStatus?: "pending" | "negotiating" | "confirmed" | "declined"
   requestedPracticeIds?: string[]
-  /** 奏者写真のURL */
   photoUrl?: string
-  /** 最終更新日時 */
   updatedAt?: string
 }
 
@@ -36,26 +39,6 @@ function nowYmdHm(): string {
   const hh = String(d.getHours()).padStart(2, "0")
   const mi = String(d.getMinutes()).padStart(2, "0")
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
-}
-
-async function getMemberSheetRangeWithFallback(maxRows = 1000): Promise<{
-  rows: unknown[][]
-  sheetName: string
-}> {
-  const { sheets, spreadsheetId } = await getSheetsClient()
-  for (const sheetName of MEMBER_SHEET_NAMES) {
-    try {
-      const range = `'${sheetName}'!A1:Q${maxRows}`
-      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range })
-      const rows = (res.data.values ?? []) as unknown[][]
-      return { rows, sheetName }
-    } catch (e) {
-      const status = (e as { status?: number })?.status
-      const code = (e as { code?: number })?.code
-      if (status !== 404 && code !== 404) throw e
-    }
-  }
-  throw new Error("Member sheet not found. Expected one of: Member page, Members")
 }
 
 function rowToMember(row: MemberRow): ApiMember {
@@ -91,61 +74,43 @@ function rowToMember(row: MemberRow): ApiMember {
   }
 }
 
-function memberToRow(m: ApiMember): string[] {
-  return [
-    m.id,
-    m.isPublic ? "ON" : "OFF",
-    m.name,
-    m.part ?? "",
-    m.partRank ?? "",
-    m.role ?? "",
-    m.email ?? "",
-    m.status ?? "member",
-    m.profile ?? "",
-    m.instagram ?? "",
-    m.extraRequestStatus ?? "",
-    JSON.stringify(m.requestedPracticeIds ?? []),
-    m.instrument ?? "",
-    String(m.joinYear ?? 0),
-    String(m.attendance ?? 0),
-    m.photoUrl ?? "",
-    m.updatedAt ?? nowYmdHm(),
-  ]
+function memberToMemberRow(m: ApiMember): MemberRow {
+  return {
+    id: m.id,
+    isPublic: m.isPublic ? "ON" : "OFF",
+    name: m.name,
+    part: m.part ?? "",
+    partRank: m.partRank ?? "",
+    role: m.role ?? "",
+    email: m.email ?? "",
+    status: m.status ?? "member",
+    profile: m.profile ?? "",
+    instagram: m.instagram ?? "",
+    extraRequestStatus: m.extraRequestStatus ?? "",
+    requestedPracticeIds: JSON.stringify(m.requestedPracticeIds ?? []),
+    instrument: m.instrument ?? "",
+    joinYear: String(m.joinYear ?? 0),
+    attendance: String(m.attendance ?? 0),
+    photoUrl: m.photoUrl ?? "",
+    updatedAt: m.updatedAt ?? nowYmdHm(),
+  }
 }
 
-// このルートは Google Sheets のサービスアカウントキーを使用するため Node.js ランタイムで動かす
 export const runtime = "nodejs"
 export const revalidate = 0
 export const dynamic = "force-dynamic"
 
-/** 列名を比較用に正規化（小文字・スペース・アンダースコア除去） */
-function normalizeHeaderName(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, "").replace(/_/g, "")
-}
-
-/** 1行目をヘッダーとして列名でマッピング。photoUrl など列の順序が違っても正しく読む */
-function rowToMemberRowByHeader(headerRow: string[], values: unknown[]): MemberRow {
-  const normalizedHeader = headerRow.map((c) => normalizeHeaderName(String(c)))
-  const row: Record<string, string> = {}
-  HEADERS.forEach((key) => {
-    const keyNorm = normalizeHeaderName(key)
-    const i = normalizedHeader.indexOf(keyNorm)
-    const raw = i >= 0 && i < values.length && values[i] != null ? String(values[i]).trim() : ""
-    row[key] = raw
-  })
-  return row as MemberRow
-}
+const noStore = { "Cache-Control": "no-store, max-age=0" }
 
 export async function GET(request: NextRequest) {
+  const denied = unauthorizedIfNeeded(request)
+  if (denied) return denied
+
   try {
     const id = request.nextUrl.searchParams.get("id")?.trim()
-    const { rows } = await getMemberSheetRangeWithFallback()
+    const { rows } = await loadMemberSheet()
     if (rows.length < 2) {
-      return NextResponse.json([], {
-        headers: {
-          "Cache-Control": "no-store, max-age=0",
-        },
-      })
+      return NextResponse.json([], { headers: noStore })
     }
     const headerRow = (rows[0] ?? []).map((c) => String(c ?? ""))
     const dataRows = rows.slice(1)
@@ -162,27 +127,22 @@ export async function GET(request: NextRequest) {
       if (!one) {
         return NextResponse.json({ error: "Member not found" }, { status: 404 })
       }
-      return NextResponse.json(one, {
-        headers: {
-          "Cache-Control": "no-store, max-age=0",
-        },
-      })
+      return NextResponse.json(one, { headers: noStore })
     }
-    return NextResponse.json(members, {
-      headers: {
-        "Cache-Control": "no-store, max-age=0",
-      },
-    })
+    return NextResponse.json(members, { headers: noStore })
   } catch (e) {
     console.error("Sheets GET error:", e)
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to fetch members" },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 export async function POST(request: NextRequest) {
+  const denied = unauthorizedIfNeeded(request)
+  if (denied) return denied
+
   try {
     const body = (await request.json()) as { member: Omit<ApiMember, "id"> }
     const member = body.member
@@ -198,42 +158,59 @@ export async function POST(request: NextRequest) {
       attendance: member.attendance ?? 0,
       updatedAt: nowYmdHm(),
     }
-    const { sheets, spreadsheetId } = await getSheetsClient()
-    const { sheetName } = await getMemberSheetRangeWithFallback()
-    const range = `'${sheetName}'!A:Q`
+
+    const { sheets, spreadsheetId, rows, sheetName } = await loadMemberSheet()
+    const headerRow =
+      rows.length > 0
+        ? (rows[0] ?? []).map((c) => String(c ?? ""))
+        : [...HEADERS]
+
+    // ヘッダー行が無い場合は先に書く
+    if (rows.length === 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${sheetName}'!A1`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [HEADERS] },
+      })
+    }
+
+    const values = memberRowToValuesByHeader(headerRow.length ? headerRow : [...HEADERS], memberToMemberRow(full))
+    const lastCol = toA1Column(Math.max(headerRow.length, values.length))
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range,
+      range: `'${sheetName}'!A:${lastCol}`,
       valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [memberToRow(full)],
-      },
+      requestBody: { values: [values] },
     })
     return NextResponse.json(full)
   } catch (e) {
     console.error("Sheets POST error:", e)
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to add member" },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const denied = unauthorizedIfNeeded(request)
+  if (denied) return denied
+
   try {
     const body = (await request.json()) as { member: Partial<ApiMember> & { id: string } }
     const updateData = body.member
     if (!updateData?.id) {
       return NextResponse.json({ error: "member.id is required" }, { status: 400 })
     }
-    const { sheets, spreadsheetId } = await getSheetsClient()
-    const { rows, sheetName } = await getMemberSheetRangeWithFallback()
+
+    const { sheets, spreadsheetId, rows, sheetName } = await loadMemberSheet()
     if (rows.length < 2) {
       return NextResponse.json({ error: "No data rows" }, { status: 404 })
     }
     const headerRow = (rows[0] ?? []).map((c) => String(c ?? ""))
     const dataRows = rows.slice(1)
-    const rowIndex = dataRows.findIndex((r) => String(r[0]).trim() === updateData.id)
+    const rowIndex = findDataRowIndexById(dataRows, headerRow, updateData.id)
     if (rowIndex < 0) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
@@ -247,42 +224,53 @@ export async function PATCH(request: NextRequest) {
       updatedAt: nowYmdHm(),
     }
 
-    const updateRange = `'${sheetName}'!A${rowIndex + 2}:Q${rowIndex + 2}`
+    const values = memberRowToValuesByHeader(headerRow, memberToMemberRow(updatedMember))
+    const lastCol = toA1Column(Math.max(headerRow.length, values.length))
+    const updateRange = `'${sheetName}'!A${rowIndex + 2}:${lastCol}${rowIndex + 2}`
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: updateRange,
       valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [memberToRow(updatedMember)],
-      },
+      requestBody: { values: [values] },
     })
     return NextResponse.json(updatedMember)
   } catch (e) {
     console.error("Sheets PATCH error:", e)
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to update member" },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const denied = unauthorizedIfNeeded(request)
+  if (denied) return denied
+
   try {
     const body = (await request.json()) as { id: string }
     const id = body.id
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 })
     }
-    const { sheets, spreadsheetId } = await getSheetsClient()
-    const { rows, sheetName } = await getMemberSheetRangeWithFallback()
+
+    const { sheets, spreadsheetId, rows, sheetName } = await loadMemberSheet()
     if (rows.length < 2) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
+    const headerRow = (rows[0] ?? []).map((c) => String(c ?? ""))
     const dataRows = rows.slice(1)
-    const rowIndex = dataRows.findIndex((r) => String(r[0]).trim() === id)
+    const rowIndex = findDataRowIndexById(dataRows, headerRow, id)
     if (rowIndex < 0) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
+
+    // id 列が無い異常系は拒否
+    const idx = getHeaderIndexMap(headerRow)
+    if (idx.id < 0) {
+      return NextResponse.json({ error: "id 列が見つかりません" }, { status: 500 })
+    }
+
     const sheetRes = await sheets.spreadsheets.get({ spreadsheetId })
     const sheet = sheetRes.data.sheets?.find((s) => s.properties?.title === sheetName)
     if (sheet?.properties?.sheetId == null) {
@@ -311,7 +299,7 @@ export async function DELETE(request: NextRequest) {
     console.error("Sheets DELETE error:", e)
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to delete member" },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

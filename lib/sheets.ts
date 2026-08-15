@@ -1,7 +1,6 @@
 import { google } from "googleapis"
 
 export const MEMBER_SHEET_NAMES = ["Member page", "Members"] as const
-const SHEET_NAME = MEMBER_SHEET_NAMES[0]
 
 export type MemberRow = {
   id: string
@@ -25,8 +24,8 @@ export type MemberRow = {
   updatedAt: string
 }
 
-/** シートの列順（ユーザーが変更した順: id → isPublic → name → …） */
-const HEADERS: (keyof MemberRow)[] = [
+/** シートの列定義（名前でマッピング。列順が違っても読み書き可能） */
+export const HEADERS: (keyof MemberRow)[] = [
   "id",
   "isPublic",
   "name",
@@ -46,24 +45,74 @@ const HEADERS: (keyof MemberRow)[] = [
   "updatedAt",
 ]
 
+export function normalizeHeaderName(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, "").replace(/_/g, "")
+}
+
+export function toA1Column(colIndex1Based: number): string {
+  let n = colIndex1Based
+  let out = ""
+  while (n > 0) {
+    const r = (n - 1) % 26
+    out = String.fromCharCode(65 + r) + out
+    n = Math.floor((n - 1) / 26)
+  }
+  return out
+}
+
+/** ヘッダー行から列インデックスマップを作る（無い列は -1） */
+export function getHeaderIndexMap(headerRow: string[]): Record<keyof MemberRow, number> {
+  const normalized = headerRow.map((h) => normalizeHeaderName(String(h ?? "")))
+  const map = {} as Record<keyof MemberRow, number>
+  for (const key of HEADERS) {
+    map[key] = normalized.indexOf(normalizeHeaderName(key))
+  }
+  return map
+}
+
+export function rowToMemberRowByHeader(headerRow: string[], values: unknown[]): MemberRow {
+  const idx = getHeaderIndexMap(headerRow)
+  const row = {} as MemberRow
+  for (const key of HEADERS) {
+    const i = idx[key]
+    row[key] = i >= 0 && i < values.length && values[i] != null ? String(values[i]).trim() : ""
+  }
+  return row
+}
+
+/** ヘッダー順に合わせた 1 行分の値配列を作る（未知の列は空のまま残す） */
+export function memberRowToValuesByHeader(headerRow: string[], row: MemberRow): string[] {
+  const idx = getHeaderIndexMap(headerRow)
+  const width = Math.max(headerRow.length, HEADERS.length)
+  const values = Array.from({ length: width }, (_, i) => {
+    const existingKey = Object.entries(idx).find(([, col]) => col === i)?.[0] as keyof MemberRow | undefined
+    if (existingKey) return row[existingKey] ?? ""
+    return ""
+  })
+  // ヘッダーに無い必須列は末尾に足さない（シート構造を壊さない）
+  // 代わりに既知列だけ埋める
+  for (const key of HEADERS) {
+    const i = idx[key]
+    if (i >= 0) values[i] = row[key] ?? ""
+  }
+  return values
+}
+
+export function findDataRowIndexById(
+  dataRows: unknown[][],
+  headerRow: string[],
+  id: string,
+): number {
+  const idx = getHeaderIndexMap(headerRow)
+  if (idx.id < 0) return -1
+  return dataRows.findIndex((r) => String(r[idx.id] ?? "").trim() === id)
+}
+
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
   if (!raw) {
-    // Vercel / 本番環境でのトラブルシュート用ログ
-    console.error(
-      "[sheets] GOOGLE_SERVICE_ACCOUNT_JSON is not set. Available GOOGLE* env keys:",
-      Object.keys(process.env || {}).filter((k) => k.includes("GOOGLE")),
-    )
     throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not set")
   }
-  console.log(
-    "[sheets] env check:",
-    "SERVICE_JSON exists:",
-    !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-    "SPREADSHEET_ID exists:",
-    !!process.env.GOOGLE_SPREADSHEET_ID,
-  )
-  // .env.local にそのまま JSON を入れている想定
   const key = JSON.parse(raw) as { client_email: string; private_key: string }
   return new google.auth.GoogleAuth({
     credentials: key,
@@ -81,22 +130,19 @@ export async function getSheetsClient() {
   return { sheets, spreadsheetId }
 }
 
-/** 「Member page」シートの A1 形式レンジ（例: 'Member page'!A1:O1000） */
-export function getMemberPageA1(maxRows = 1000) {
-  const colEnd = String.fromCharCode(64 + HEADERS.length)
-  return `'${SHEET_NAME}'!A1:${colEnd}${maxRows}`
+export async function loadMemberSheet(maxRows = 1000) {
+  const { sheets, spreadsheetId } = await getSheetsClient()
+  for (const sheetName of MEMBER_SHEET_NAMES) {
+    try {
+      const range = `'${sheetName}'!A1:ZZ${maxRows}`
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range })
+      const rows = (res.data.values ?? []) as unknown[][]
+      return { sheets, spreadsheetId, rows, sheetName }
+    } catch (e) {
+      const status = (e as { status?: number })?.status
+      const code = (e as { code?: number })?.code
+      if (status !== 404 && code !== 404) throw e
+    }
+  }
+  throw new Error("Member sheet not found. Expected one of: Member page, Members")
 }
-
-export function rowToMemberRow(values: unknown[]): MemberRow {
-  const row: Record<string, string> = {}
-  HEADERS.forEach((h, i) => {
-    row[h] = i < values.length && values[i] != null ? String(values[i]).trim() : ""
-  })
-  return row as MemberRow
-}
-
-export function memberRowToValues(row: MemberRow): string[] {
-  return HEADERS.map((h) => row[h] ?? "")
-}
-
-export { HEADERS }

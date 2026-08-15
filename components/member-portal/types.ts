@@ -41,7 +41,7 @@ export const PART_DISPLAY_ORDER = [
 export const DASHBOARD_STORAGE_KEY = "arsis-dashboard-data"
 export const MEMBERS_API = "/api/sheets/members"
 export const SHEET_HEADER_ROW =
-  "id,isPublic,name,part,partRank,role,email,status,profile,instagram,extraRequestStatus,requestedPracticeIds,instrument,joinYear,attendance,photoUrl"
+  "id,isPublic,name,part,partRank,role,email,status,profile,instagram,extraRequestStatus,requestedPracticeIds,instrument,joinYear,attendance,photoUrl,updatedAt"
 
 /** 表示・出力用の役割順位（0=コンサートマスター, 1=その他役割あり, 2=役割なし） */
 export function getRoleRank(m: { role?: string }): number {

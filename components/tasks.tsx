@@ -37,6 +37,7 @@ import {
   Calendar as CalendarIcon,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { ja } from "date-fns/locale"
@@ -56,6 +57,7 @@ import {
   CATEGORY_LABEL,
   DEFAULT_TEMPLATES,
 } from "@/lib/task-store"
+import { useAppData } from "@/hooks/use-app-data"
 
 /* ─── 色定義 ────────────────────────────────────── */
 const PRIORITY_COLOR: Record<Priority, string> = {
@@ -72,7 +74,9 @@ const CATEGORY_COLOR: Record<Category, string> = {
 
 /* ─── メインコンポーネント ─────────────────────── */
 export function Tasks() {
-  const [store, setStore] = useState<TaskStoreData>({ tasks: [], templates: DEFAULT_TEMPLATES, concerts: [] })
+  const { data: appData, loading: appLoading, saving: appSaving, update: appUpdate } = useAppData()
+  /* テンプレートのみ localStorage で管理（端末ごとのカスタム設定） */
+  const [templates, setTemplates] = useState<TaskTemplate[]>(DEFAULT_TEMPLATES)
   const [hydrated, setHydrated] = useState(false)
   const [tab, setTab] = useState<"tasks" | "templates" | "concerts">("tasks")
 
@@ -91,56 +95,59 @@ export function Tasks() {
   const [showDone, setShowDone] = useState(false)
 
   useEffect(() => {
-    setStore(loadStore())
+    /* テンプレートだけ localStorage から読む */
+    const s = loadStore()
+    setTemplates(s.templates)
     setHydrated(true)
   }, [])
 
-  const persist = useCallback((next: TaskStoreData) => {
-    setStore(next)
-    saveStore(next)
+  const persistTemplates = useCallback((next: TaskTemplate[]) => {
+    setTemplates(next)
+    const s = loadStore()
+    saveStore({ ...s, templates: next })
   }, [])
 
-  /* ── タスク操作 ── */
+  /* ── タスク操作（Sheets経由） ── */
   const toggleTask = (id: string) =>
-    persist({ ...store, tasks: store.tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t) })
+    appUpdate({ tasks: appData.tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t) })
 
   const removeTask = (id: string) =>
-    persist({ ...store, tasks: store.tasks.filter((t) => t.id !== id) })
+    appUpdate({ tasks: appData.tasks.filter((t) => t.id !== id) })
 
   const saveTask = (task: Task) => {
-    const exists = store.tasks.some((t) => t.id === task.id)
+    const exists = appData.tasks.some((t) => t.id === task.id)
     const tasks = exists
-      ? store.tasks.map((t) => t.id === task.id ? task : t)
-      : [...store.tasks, task]
-    persist({ ...store, tasks })
+      ? appData.tasks.map((t) => t.id === task.id ? task : t)
+      : [...appData.tasks, task]
+    appUpdate({ tasks })
     toast.success(exists ? "タスクを更新しました" : "タスクを追加しました")
   }
 
-  /* ── テンプレート操作 ── */
+  /* ── テンプレート操作（localStorage） ── */
   const saveTemplate = (tpl: TaskTemplate) => {
-    const exists = store.templates.some((t) => t.id === tpl.id)
-    const templates = exists
-      ? store.templates.map((t) => t.id === tpl.id ? tpl : t)
-      : [...store.templates, tpl]
-    persist({ ...store, templates })
+    const exists = templates.some((t) => t.id === tpl.id)
+    const next = exists
+      ? templates.map((t) => t.id === tpl.id ? tpl : t)
+      : [...templates, tpl]
+    persistTemplates(next)
     toast.success(exists ? "テンプレートを更新しました" : "テンプレートを追加しました")
   }
 
   const removeTemplate = (id: string) =>
-    persist({ ...store, templates: store.templates.filter((t) => t.id !== id) })
+    persistTemplates(templates.filter((t) => t.id !== id))
 
-  /* ── 演奏会操作 ── */
+  /* ── 演奏会操作（Sheets経由） ── */
   const saveConcert = (concert: Concert) => {
-    const exists = store.concerts.some((c) => c.id === concert.id)
-    const concerts = exists
-      ? store.concerts.map((c) => c.id === concert.id ? concert : c)
-      : [...store.concerts, concert]
-    persist({ ...store, concerts })
+    const exists = appData.taskConcerts.some((c) => c.id === concert.id)
+    const taskConcerts = exists
+      ? appData.taskConcerts.map((c) => c.id === concert.id ? concert : c)
+      : [...appData.taskConcerts, concert]
+    appUpdate({ taskConcerts })
     toast.success(exists ? "演奏会情報を更新しました" : "演奏会を登録しました")
   }
 
   const removeConcert = (id: string) =>
-    persist({ ...store, concerts: store.concerts.filter((c) => c.id !== id) })
+    appUpdate({ taskConcerts: appData.taskConcerts.filter((c) => c.id !== id) })
 
   /** 演奏会終了後にテンプレートからタスクを自動生成 */
   const generateTasks = (concert: Concert) => {
@@ -148,16 +155,16 @@ export function Tasks() {
       toast.error("このコンサートのタスクはすでに生成済みです")
       return
     }
-    const newTasks = generateTasksFromTemplates(store.templates, concert)
-    const updatedConcerts = store.concerts.map((c) =>
+    const newTasks = generateTasksFromTemplates(templates, concert)
+    const updatedConcerts = appData.taskConcerts.map((c) =>
       c.id === concert.id ? { ...c, tasksGenerated: true } : c,
     )
-    persist({ ...store, tasks: [...store.tasks, ...newTasks], concerts: updatedConcerts })
+    appUpdate({ tasks: [...appData.tasks, ...newTasks], taskConcerts: updatedConcerts })
     toast.success(`${newTasks.length}件のタスクを自動生成しました`)
   }
 
   /* ── フィルタリング ── */
-  const filtered = store.tasks.filter((t) => {
+  const filtered = appData.tasks.filter((t) => {
     if (!showDone && t.done) return false
     if (filterPriority !== "all" && t.priority !== filterPriority) return false
     if (filterCategory !== "all" && t.category !== filterCategory) return false
@@ -176,10 +183,13 @@ export function Tasks() {
             運営タスクの管理・演奏会テンプレートの設定
           </p>
         </div>
-        <Button onClick={() => { setEditTask(null); setAddOpen(true) }}>
-          <Plus className="w-4 h-4 mr-1.5" />
-          タスク追加
-        </Button>
+        <div className="flex items-center gap-2">
+          {appSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          <Button onClick={() => { setEditTask(null); setAddOpen(true) }}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            タスク追加
+          </Button>
+        </div>
       </header>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
@@ -225,7 +235,7 @@ export function Tasks() {
               <SelectContent>
                 <SelectItem value="all">すべての演奏会</SelectItem>
                 <SelectItem value="null">共通タスク</SelectItem>
-                {store.concerts.map((c) => (
+                {appData.taskConcerts.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -241,11 +251,11 @@ export function Tasks() {
           </div>
 
           {/* 未完了タスク */}
-          {!hydrated ? (
+          {appLoading ? (
             <p className="text-sm text-muted-foreground text-center py-8">読み込み中…</p>
           ) : pending.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              {store.tasks.length === 0 ? "タスクはありません。「タスク追加」から作成してください。" : "表示できるタスクはありません"}
+              {appData.tasks.length === 0 ? "タスクはありません。「タスク追加」から作成してください。" : "表示できるタスクはありません"}
             </p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -253,7 +263,7 @@ export function Tasks() {
                 <TaskCard
                   key={task.id}
                   task={task}
-                  concerts={store.concerts}
+                  concerts={appData.taskConcerts}
                   onToggle={toggleTask}
                   onEdit={setEditTask}
                   onRemove={removeTask}
@@ -270,7 +280,7 @@ export function Tasks() {
                 <TaskCard
                   key={task.id}
                   task={task}
-                  concerts={store.concerts}
+                  concerts={appData.taskConcerts}
                   onToggle={toggleTask}
                   onEdit={setEditTask}
                   onRemove={removeTask}
@@ -288,15 +298,15 @@ export function Tasks() {
               演奏会を登録
             </Button>
           </div>
-          {store.concerts.length === 0 ? (
+          {appData.taskConcerts.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">演奏会が登録されていません</p>
           ) : (
             <div className="flex flex-col gap-3">
-              {store.concerts.map((concert) => (
+              {appData.taskConcerts.map((concert) => (
                 <ConcertCard
                   key={concert.id}
                   concert={concert}
-                  taskCount={store.tasks.filter((t) => t.concertId === concert.id).length}
+                  taskCount={appData.tasks.filter((t) => t.concertId === concert.id).length}
                   onGenerate={generateTasks}
                   onRemove={removeConcert}
                 />
@@ -318,7 +328,7 @@ export function Tasks() {
             </Button>
           </div>
           <div className="flex flex-col gap-2">
-            {store.templates.map((tpl) => (
+            {templates.map((tpl) => (
               <TemplateRow
                 key={tpl.id}
                 template={tpl}
@@ -334,7 +344,7 @@ export function Tasks() {
       <TaskDialog
         open={addOpen || editTask !== null}
         initial={editTask}
-        concerts={store.concerts}
+        concerts={appData.taskConcerts}
         onSave={(t) => { saveTask(t); setAddOpen(false); setEditTask(null) }}
         onClose={() => { setAddOpen(false); setEditTask(null) }}
       />

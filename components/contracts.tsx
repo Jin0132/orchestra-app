@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +39,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useAppData } from "@/hooks/use-app-data"
+import { Loader2 } from "lucide-react"
 
 type ContractStatus = "confirmed" | "pending" | "declined" | "draft"
 
@@ -57,33 +59,11 @@ interface Contract {
   notes: string
 }
 
-const STORAGE_KEY = "arsis-contracts-v1"
-
 const statusConfig: Record<ContractStatus, { label: string; icon: React.ElementType; className: string }> = {
   confirmed: { label: "確認済", icon: CheckCircle2, className: "bg-chart-3/15 text-chart-3 border-chart-3/30" },
   pending: { label: "未確認", icon: Clock, className: "bg-accent/15 text-accent border-accent/30" },
   declined: { label: "辞退", icon: XCircle, className: "bg-destructive/10 text-destructive border-destructive/30" },
   draft: { label: "下書き", icon: FileText, className: "bg-muted text-muted-foreground border-border" },
-}
-
-function loadContracts(): Contract[] {
-  if (typeof window === "undefined") return []
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? (parsed as Contract[]) : []
-  } catch {
-    return []
-  }
-}
-
-function saveContracts(list: Contract[]) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-  } catch {
-    // ignore quota errors
-  }
 }
 
 function escapeCsv(val: string | number): string {
@@ -92,8 +72,8 @@ function escapeCsv(val: string | number): string {
 }
 
 export function Contracts() {
-  const [contracts, setContracts] = useState<Contract[]>([])
-  const [hydrated, setHydrated] = useState(false)
+  const { data: appData, loading, saving, update } = useAppData()
+  const contracts = (appData.contracts as unknown as Contract[]) ?? []
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [concertFilter, setConcertFilter] = useState<string>("all")
@@ -110,15 +90,10 @@ export function Contracts() {
     notes: "",
   })
 
-  useEffect(() => {
-    setContracts(loadContracts())
-    setHydrated(true)
-  }, [])
-
-  useEffect(() => {
-    if (!hydrated) return
-    saveContracts(contracts)
-  }, [contracts, hydrated])
+  const setContracts = useCallback((updater: Contract[] | ((prev: Contract[]) => Contract[])) => {
+    const next = typeof updater === "function" ? updater(contracts) : updater
+    update({ contracts: next as unknown as typeof appData.contracts })
+  }, [contracts, update])
 
   const filteredContracts = contracts.filter((c) => {
     const matchSearch =
@@ -215,6 +190,15 @@ export function Contracts() {
     URL.revokeObjectURL(url)
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">読み込み中…</span>
+      </div>
+    )
+  }
+
   const summary = {
     total: contracts.length,
     confirmed: contracts.filter((c) => c.status === "confirmed").length,
@@ -228,10 +212,11 @@ export function Contracts() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">エキストラ契約管理</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            エキストラ奏者との契約状況を一元管理（このブラウザの localStorage に保存）
+            エキストラ奏者との契約状況を一元管理（Google Sheets で全端末共有）
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           <Button
             variant="outline"
             className="border-border text-muted-foreground hover:text-foreground"
@@ -519,7 +504,7 @@ export function Contracts() {
           </div>
           {filteredContracts.length === 0 && (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              {hydrated ? "該当する契約がありません。新規契約から追加できます。" : "読み込み中…"}
+              {"該当する契約がありません。新規契約から追加できます。"}
             </div>
           )}
         </CardContent>

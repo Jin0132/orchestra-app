@@ -1,9 +1,10 @@
 /**
- * タスク管理の共有ストア
- * - タスクデータ・テンプレートはすべて localStorage に保存
- * - dashboard と tasks ページで同じキーを参照して同期
+ * タスクテンプレートのローカルストア
+ * - テンプレートのみ localStorage に保存（端末ごとのカスタム設定）
+ * - タスク・演奏会データは useAppData (Google Sheets) で管理
  */
 
+// Task・Concert・Priority・Category 型は use-app-data が正（循環参照を避けるため直接定義）
 export type Priority = "high" | "medium" | "low"
 export type Category = "concert" | "rehearsal" | "admin" | "other"
 
@@ -13,10 +14,18 @@ export interface Task {
   done: boolean
   priority: Priority
   category: Category
-  dueDate: string | null   // ISO date string "yyyy-MM-dd"
+  dueDate: string | null
   assignee: string
-  concertId: string | null // どの演奏会に紐付くか（null = 共通）
-  createdAt: string        // ISO datetime
+  concertId: string | null
+  createdAt: string
+}
+
+export interface Concert {
+  id: string
+  name: string
+  date: string | null
+  venue: string
+  tasksGenerated: boolean
 }
 
 export interface TaskTemplate {
@@ -29,19 +38,9 @@ export interface TaskTemplate {
   dueDaysBeforeConcert: number | null
 }
 
-export interface Concert {
-  id: string
-  name: string
-  date: string | null  // ISO date string
-  venue: string
-  /** 反省会後に自動生成済みかどうか */
-  tasksGenerated: boolean
-}
-
+/** テンプレートのみローカル保存 */
 export interface TaskStoreData {
-  tasks: Task[]
   templates: TaskTemplate[]
-  concerts: Concert[]
 }
 
 /** デフォルトテンプレート（演奏会終了後に自動生成されるタスク一覧） */
@@ -69,9 +68,7 @@ export function loadStore(): TaskStoreData {
     if (!raw) return emptyStore()
     const parsed = JSON.parse(raw) as Partial<TaskStoreData>
     return {
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
       templates: Array.isArray(parsed.templates) ? parsed.templates : DEFAULT_TEMPLATES,
-      concerts: Array.isArray(parsed.concerts) ? parsed.concerts : [],
     }
   } catch {
     return emptyStore()
@@ -84,7 +81,7 @@ export function saveStore(data: TaskStoreData) {
 }
 
 function emptyStore(): TaskStoreData {
-  return { tasks: [], templates: DEFAULT_TEMPLATES, concerts: [] }
+  return { templates: DEFAULT_TEMPLATES }
 }
 
 /** テンプレートから演奏会用タスクを一括生成して返す */

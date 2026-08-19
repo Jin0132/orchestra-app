@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { Task, Concert } from "@/lib/task-store"
+export type { Task, Concert }
 
 /* ─── 型定義 ────────────────────────────────────── */
 export interface BasicInfo {

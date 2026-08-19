@@ -816,22 +816,12 @@ export function TasksSummary({
 }: {
   onNavigate?: () => void
 }) {
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [hydrated, setHydrated] = useState(false)
+  const { data, loading, update } = useAppData()
 
-  useEffect(() => {
-    const s = loadStore()
-    setTasks(s.tasks)
-    setHydrated(true)
-  }, [])
-
-  const pending = tasks.filter((t) => !t.done).slice(0, 5)
+  const pending = data.tasks.filter((t) => !t.done).slice(0, 5)
 
   const toggle = (id: string) => {
-    const store = loadStore()
-    const next = { ...store, tasks: store.tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t) }
-    saveStore(next)
-    setTasks(next.tasks)
+    update({ tasks: data.tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t) })
   }
 
   return (
@@ -852,11 +842,11 @@ export function TasksSummary({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
-        {!hydrated ? (
+        {loading ? (
           <p className="text-xs text-muted-foreground py-2 text-center">読み込み中…</p>
         ) : pending.length === 0 ? (
           <p className="text-xs text-muted-foreground py-2 text-center">
-            {tasks.length === 0 ? "タスクはありません" : "未完了のタスクはありません"}
+            {data.tasks.length === 0 ? "タスクはありません" : "未完了のタスクはありません"}
           </p>
         ) : (
           pending.map((task) => (

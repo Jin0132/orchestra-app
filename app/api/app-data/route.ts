@@ -3,11 +3,12 @@
  * POST /api/app-data  → 同データを一括保存（シート全体を上書き）
  *
  * シート名: "AppData"
- * 構造: A列=key, B列=JSON文字列 の 4行
- *   row1: concert  | {...}
- *   row2: practices| [...]
- *   row3: tasks    | [...]
- *   row4: contracts| [...]
+ * 構造: A列=key, B列=JSON文字列
+ *   concert      | {...}
+ *   practices    | [...]
+ *   tasks        | [...]
+ *   contracts    | [...]
+ *   taskConcerts | [...]
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic"
 
 const SHEET_NAME = "AppData"
 
-const KEYS = ["concert", "practices", "tasks", "contracts"] as const
+const KEYS = ["concert", "practices", "tasks", "contracts", "taskConcerts"] as const
 type DataKey = (typeof KEYS)[number]
 
 async function ensureSheet(sheets: Awaited<ReturnType<typeof getSheetsClient>>["sheets"], spreadsheetId: string) {

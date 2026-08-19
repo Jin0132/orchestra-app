@@ -18,14 +18,12 @@ import {
 } from "@/components/ui/dialog"
 import {
   MEMBERS_API,
-  SHEET_HEADER_ROW,
   PART_DISPLAY_ORDER,
   getRoleRank,
   loadPracticeSchedule,
   type Member,
   type PracticeItem,
 } from "./types"
-import { CopyHeaderButton } from "./copy-header-button"
 import { NewMemberForm } from "./new-member-form"
 import { MemberDetailCard } from "./member-detail-card"
 
@@ -478,34 +476,6 @@ export function MemberPortal() {
         </TabsContent>
       </Tabs>
 
-      <Card className="border border-border bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-foreground">スプレッドシート設定</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            シート「Member page」の 1 行目に、下のヘッダーをそのままコピーして貼り付けてください。
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Label className="text-xs text-muted-foreground">1行目（コピー用）</Label>
-          <div className="flex gap-2">
-            <Input
-              readOnly
-              className="font-mono text-xs flex-1"
-              value={SHEET_HEADER_ROW}
-              onFocus={(e) => e.target.select()}
-            />
-            <CopyHeaderButton />
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            上記を選択してコピーするか「コピー」ボタンでクリップボードにコピーし、スプレッドシートの「Member page」の A1 セルに貼り付けてください。
-          </p>
-          <p className="text-[11px] text-muted-foreground pt-2 border-t border-border mt-2">
-            環境変数（.env.local）の設定方法と、npm install / アプリ起動の詳細は
-            <code className="mx-1 px-1 rounded bg-muted text-foreground">docs/SPREADSHEET_SETUP.md</code>
-            を参照してください。
-          </p>
-        </CardContent>
-      </Card>
     </div>
   )
 }

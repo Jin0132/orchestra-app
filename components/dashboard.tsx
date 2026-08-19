@@ -16,12 +16,11 @@ import {
   Users,
   Calendar as CalendarIcon,
   FileText,
-  Music,
-  Clock,
-  AlertCircle,
   Plus,
   Trash2,
+  Pencil,
 } from "lucide-react"
+import { TasksSummary } from "@/components/tasks"
 import { format, differenceInDays, parseISO } from "date-fns"
 import { ja } from "date-fns/locale"
 import { toast } from "sonner"
@@ -115,7 +114,13 @@ function generateId() {
   return Math.random().toString(36).slice(2, 12)
 }
 
-export function Dashboard({ onNavigateToMembers }: { onNavigateToMembers?: () => void }) {
+export function Dashboard({
+  onNavigateToMembers,
+  onNavigateToTasks,
+}: {
+  onNavigateToMembers?: () => void
+  onNavigateToTasks?: () => void
+}) {
   const [data, setData] = useState<DashboardData>(defaultData)
   const [extrasCount, setExtrasCount] = useState(0)
   const [memberCountFromPortal, setMemberCountFromPortal] = useState(0)
@@ -287,155 +292,144 @@ export function Dashboard({ onNavigateToMembers }: { onNavigateToMembers?: () =>
       }
     })()
 
-  const pendingCount = data.extraContracts.filter((c) => c.status === "pending").length
+  const hasBasicInfo = !!(
+    data.basicInfo.nextConcertDate ||
+    data.basicInfo.hall ||
+    data.basicInfo.rehearsalTime ||
+    data.basicInfo.concertTime
+  )
+
+  /* カウントダウン表示用: 日数を桁ごとに分解 */
+  const countdownDigits =
+    nextConcertDays != null && typeof nextConcertDays === "number" && nextConcertDays >= 0
+      ? String(nextConcertDays).split("")
+      : null
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">ダッシュボード</h2>
-        <p className="text-sm text-muted-foreground mt-1">Arsis Chamber Orchestra 運営の概要</p>
-      </header>
+      {/* ヘッダー: タイトル + カウントダウン */}
+      <header className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <h2 className="text-2xl font-bold tracking-tight text-foreground shrink-0">ダッシュボード</h2>
 
-      {/* 統計カード（公演・契約から算出） */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card className="border border-border bg-card">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">次回公演まで</p>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-3xl font-bold text-foreground">
-                    {nextConcertDays != null ? nextConcertDays : "—"}
-                  </span>
-                  <span className="text-sm text-muted-foreground">日</span>
-                </div>
-                {nextConcertDays != null && typeof nextConcertDays === "number" && nextConcertDays >= 0 && (
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <Clock className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
-                      {data.basicInfo.nextConcertDate &&
-                        format(parseISO(data.basicInfo.nextConcertDate), "M/d", { locale: ja })}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                <CalendarIcon className="w-5 h-5 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border border-border bg-card">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">エキストラ契約</p>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-3xl font-bold text-foreground">{data.extraContracts.length}</span>
-                  <span className="text-sm text-muted-foreground">件</span>
-                </div>
-                {pendingCount > 0 && (
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <AlertCircle className="w-3 h-3 text-destructive" />
-                    <span className="text-xs text-muted-foreground">{pendingCount} 依頼中</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                <FileText className="w-5 h-5 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border border-border bg-card">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">練習予定</p>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-3xl font-bold text-foreground">{data.practiceSchedule.length}</span>
-                  <span className="text-sm text-muted-foreground">回</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                <Music className="w-5 h-5 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 基本情報カード（公演に関する情報のみ） */}
-      <Card className="border border-border bg-card">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold text-foreground">基本情報</CardTitle>
-        </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>次回公演日</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal border-input"
+        {countdownDigits ? (
+          /* 入力済み: 日めくり風カウントダウン + 編集ポップオーバー */
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 group cursor-pointer"
+                title="クリックして公演情報を編集"
+              >
+                <span className="text-xs text-muted-foreground shrink-0">次回公演まで</span>
+                <span className="flex gap-0.5">
+                  {countdownDigits.map((d, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center justify-center w-8 h-10 rounded-md bg-foreground text-background text-xl font-bold font-mono shadow-[0_2px_0_0_rgba(0,0,0,0.3)] select-none"
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {data.basicInfo.nextConcertDate
-                        ? format(parseISO(data.basicInfo.nextConcertDate), "yyyy年M月d日(E)", { locale: ja })
-                        : "日付を選択"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={
-                        data.basicInfo.nextConcertDate
-                          ? parseISO(data.basicInfo.nextConcertDate)
-                          : undefined
-                      }
-                      onSelect={(date) =>
-                        updateBasicInfo({
-                          nextConcertDate: date ? format(date, "yyyy-MM-dd") : null,
-                        })
-                      }
-                      locale={ja}
-                    />
-                  </PopoverContent>
-                </Popover>
+                      {d}
+                    </span>
+                  ))}
+                </span>
+                <span className="text-xs text-muted-foreground shrink-0">日</span>
+                <Pencil className="w-3 h-3 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-5" align="start" sideOffset={8}>
+              <p className="text-sm font-semibold text-foreground mb-4">公演情報</p>
+              <div className="flex flex-col gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">次回公演日</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal text-sm h-9">
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                        {data.basicInfo.nextConcertDate
+                          ? format(parseISO(data.basicInfo.nextConcertDate), "yyyy年M月d日(E)", { locale: ja })
+                          : "日付を選択"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={data.basicInfo.nextConcertDate ? parseISO(data.basicInfo.nextConcertDate) : undefined}
+                        onSelect={(date) => updateBasicInfo({ nextConcertDate: date ? format(date, "yyyy-MM-dd") : null })}
+                        locale={ja}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pop-hall" className="text-xs">公演ホール</Label>
+                  <Input id="pop-hall" className="h-9 text-sm" value={data.basicInfo.hall} onChange={(e) => updateBasicInfo({ hall: e.target.value })} placeholder="例: ○○市民ホール 大ホール" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pop-rehearsal" className="text-xs">ゲネプロ時間</Label>
+                    <Input id="pop-rehearsal" className="h-9 text-sm" value={data.basicInfo.rehearsalTime} onChange={(e) => updateBasicInfo({ rehearsalTime: e.target.value })} placeholder="13:00–15:00" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pop-concert" className="text-xs">本番時間</Label>
+                    <Input id="pop-concert" className="h-9 text-sm" value={data.basicInfo.concertTime} onChange={(e) => updateBasicInfo({ concertTime: e.target.value })} placeholder="16:00 開演" />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="basic-hall">公演ホール</Label>
-                <Input
-                  id="basic-hall"
-                  value={data.basicInfo.hall}
-                  onChange={(e) => updateBasicInfo({ hall: e.target.value })}
-                  placeholder="例: ○○市民ホール 大ホール"
-                />
+            </PopoverContent>
+          </Popover>
+        ) : (
+          /* 未入力: ポップオーバーで初回入力 */
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+              >
+                公演情報を入力
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-5" align="start" sideOffset={8}>
+              <p className="text-sm font-semibold text-foreground mb-4">公演情報</p>
+              <div className="flex flex-col gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">次回公演日</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal text-sm h-9">
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                        {data.basicInfo.nextConcertDate
+                          ? format(parseISO(data.basicInfo.nextConcertDate), "yyyy年M月d日(E)", { locale: ja })
+                          : "日付を選択"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={data.basicInfo.nextConcertDate ? parseISO(data.basicInfo.nextConcertDate) : undefined}
+                        onSelect={(date) => updateBasicInfo({ nextConcertDate: date ? format(date, "yyyy-MM-dd") : null })}
+                        locale={ja}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-hall" className="text-xs">公演ホール</Label>
+                  <Input id="new-hall" className="h-9 text-sm" value={data.basicInfo.hall} onChange={(e) => updateBasicInfo({ hall: e.target.value })} placeholder="例: ○○市民ホール 大ホール" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-rehearsal" className="text-xs">ゲネプロ時間</Label>
+                    <Input id="new-rehearsal" className="h-9 text-sm" value={data.basicInfo.rehearsalTime} onChange={(e) => updateBasicInfo({ rehearsalTime: e.target.value })} placeholder="13:00–15:00" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-concert" className="text-xs">本番時間</Label>
+                    <Input id="new-concert" className="h-9 text-sm" value={data.basicInfo.concertTime} onChange={(e) => updateBasicInfo({ concertTime: e.target.value })} placeholder="16:00 開演" />
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="basic-rehearsal-time">ゲネプロ時間</Label>
-                <Input
-                  id="basic-rehearsal-time"
-                  value={data.basicInfo.rehearsalTime}
-                  onChange={(e) => updateBasicInfo({ rehearsalTime: e.target.value })}
-                  placeholder="例: 13:00–15:00"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="basic-concert-time">本番時間</Label>
-                <Input
-                  id="basic-concert-time"
-                  value={data.basicInfo.concertTime}
-                  onChange={(e) => updateBasicInfo({ concertTime: e.target.value })}
-                  placeholder="例: 16:00 開演"
-                />
-              </div>
-            </div>
-          </CardContent>
-      </Card>
+            </PopoverContent>
+          </Popover>
+        )}
+      </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 練習日スケジュール */}
         <Card className="lg:col-span-2 border border-border bg-card">
@@ -493,7 +487,10 @@ export function Dashboard({ onNavigateToMembers }: { onNavigateToMembers?: () =>
         </Card>
 
         <div className="space-y-4">
-          {/* エキストラ管理（団員情報と統一・誘導カード） */}
+          {/* タスク管理 */}
+          <TasksSummary onNavigate={onNavigateToTasks} />
+
+          {/* エキストラ管理 */}
           <Card className="border border-border bg-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">

@@ -21,9 +21,11 @@ Arsis Chamber Orchestra の**運営ポータル**です。ダッシュボード�
 
 | 画面 / パス | 内容 | データの保存先 |
 |---|---|---|
-| ダッシュボード | 公演情報、練習日程、エキストラ枠 | `localStorage`（`arsis-dashboard-data`） |
+| ダッシュボード | 公演情報、練習日程、エキストラ枠、関連書類 | Google スプレッドシート（`AppData` / `Documents`） |
+| タスク管理 | 運営タスク・演奏会・書類紐づけ | 同上 |
+| 書類 | Docs / Sheets / Drive / NotebookLM の台帳・検索 | `Documents` シート。原本は Google |
 | セッティング表 | 舞台上の座席をドラッグ配置し、画像書き出し | `localStorage`（`seating-state-v1`） |
-| エキストラ契約 | 契約ステータスの一覧・検索・追加・CSV | `localStorage`（`arsis-contracts-v1`） |
+| エキストラ契約 | 契約ステータスの一覧・検索・追加・CSV | Google スプレッドシート（`AppData`） |
 | 団員情報 | 検索・追加・編集・削除・CSV・写真 | Google スプレッドシート |
 | `/mypage?id=団員ID` | 本人のプロフィール・写真更新（パスワード不要） | 同上（更新可能な列は限定） |
 
@@ -42,19 +44,24 @@ orchestra-app-1/
 │   └── api/
 │       ├── auth/                # ポータル入室セッション
 │       ├── sheets/members/      # 団員 CRUD（保護対象）
+│       ├── documents/           # 書類台帳・Drive / Docs
 │       ├── member/              # マイページ用 GET / PATCH
 │       └── upload/              # 写真アップロード（Vercel Blob）
 ├── components/
 │   ├── portal-auth-gate.tsx
-│   ├── sidebar.tsx / dashboard.tsx / seating-chart.tsx / contracts.tsx
+│   ├── sidebar.tsx / dashboard.tsx / seating-chart.tsx / contracts.tsx / documents.tsx
 │   ├── member-portal/
 │   └── ui/
 ├── lib/
 │   ├── sheets.ts                # Sheets 認証・ヘッダー基準の読み書き
+│   ├── documents.ts             # 書類台帳
+│   ├── google-auth.ts           # Sheets / Drive / Docs 共通認証
+│   ├── google-workspace.ts      # Drive 一覧・Docs 作成
 │   ├── api-auth.ts              # ポータル認証
 │   └── upload.ts                # アップロード検証
-├── hooks/use-media-query.ts
+├── hooks/use-media-query.ts / use-documents.ts
 ├── docs/SPREADSHEET_SETUP.md
+├── docs/DOCUMENTS_SETUP.md
 └── public/manifest.json
 ```
 
@@ -64,6 +71,10 @@ orchestra-app-1/
 |---|---|---|
 | `GET/POST /api/auth` | 入室状態確認・パスワードログイン | `DELETE` でログアウト |
 | `GET/POST/PATCH/DELETE /api/sheets/members` | 運営側の団員 CRUD | `PORTAL_ACCESS_SECRET` 設定時は要ログイン |
+| `GET/POST/PATCH/DELETE /api/documents` | 書類台帳 CRUD | 同上。原本は動かさない |
+| `POST /api/documents/inspect` | URL から題名・種類・要約案 | Drive / Docs API |
+| `GET /api/documents/drive` | 共有フォルダの未登録ファイル | Drive API |
+| `POST /api/documents/create` | 共有フォルダに Docs を新規作成 | Docs / Drive API |
 | `GET/PATCH /api/member` | マイページ用 | ID 指定。ポータルパスワードは不要 |
 | `POST /api/upload/photo` | 運営側の写真 | 要ログイン（秘密設定時）・画像のみ・5MB 以下 |
 | `POST /api/upload` | マイページ写真 | 画像のみ・5MB 以下 |
@@ -77,7 +88,8 @@ orchestra-app-1/
 | 変数 | 必須 | 用途 |
 |---|---|---|
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | 団員機能 | サービスアカウント鍵（JSON を 1 行） |
-| `GOOGLE_SPREADSHEET_ID` | 団員機能 | 対象スプレッドシート ID |
+| `GOOGLE_SPREADSHEET_ID` | 団員・書類台帳 | 対象スプレッドシート ID |
+| `GOOGLE_DRIVE_FOLDER_ID` | 任意 | 書類の共有フォルダ。未設定時はマイページと同じフォルダ |
 | `BLOB_READ_WRITE_TOKEN` | 写真 | Vercel Blob |
 | `PORTAL_ACCESS_SECRET` | 任意 | 設定すると運営ポータルと団員 CRUD API をパスワード保護 |
 
@@ -137,6 +149,7 @@ npm start
 - 団員の検索、パートフィルタ、新規追加、詳細編集、削除、CSV
 - 写真アップロードと `photoUrl` 更新
 - 公開フラグ `isPublic`
+- 書類台帳（検索・分類・公演紐づけ・Drive 取り込み・Docs 新規作成）
 - `/mypage?id=...` による本人更新
 - PWA（本番ビルド時）
 - 任意のポータルパスワード保護
@@ -154,3 +167,4 @@ npm start
 ## 7. 関連ドキュメント
 
 - [docs/SPREADSHEET_SETUP.md](./docs/SPREADSHEET_SETUP.md) — サービスアカウント・シート ID・トラブルシュート
+- [docs/DOCUMENTS_SETUP.md](./docs/DOCUMENTS_SETUP.md) — Drive / Docs API と共有フォルダ

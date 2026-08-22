@@ -20,6 +20,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { TasksSummary } from "@/components/tasks"
+import { DocumentsSummary } from "@/components/documents"
 import { format, differenceInDays, parseISO } from "date-fns"
 import { ja } from "date-fns/locale"
 import { toast } from "sonner"
@@ -30,9 +31,11 @@ import { useEffect, useRef } from "react"
 export function Dashboard({
   onNavigateToMembers,
   onNavigateToTasks,
+  onNavigateToDocuments,
 }: {
   onNavigateToMembers?: () => void
   onNavigateToTasks?: () => void
+  onNavigateToDocuments?: () => void
 }) {
   const { data, loading, saving, error, update } = useAppData()
   const [extrasCount, setExtrasCount] = useState(0)
@@ -215,6 +218,7 @@ export function Dashboard({
 
         <div className="space-y-4">
           <TasksSummary onNavigate={onNavigateToTasks} />
+          <DocumentsSummary onNavigate={onNavigateToDocuments} />
 
           {/* エキストラ管理 */}
           <Card className="border border-border bg-card">

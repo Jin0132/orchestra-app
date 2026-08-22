@@ -17,6 +17,7 @@ export interface Task {
   dueDate: string | null
   assignee: string
   concertId: string | null
+  documentIds?: string[]
   createdAt: string
 }
 
@@ -110,6 +111,7 @@ export function generateTasksFromTemplates(
       dueDate,
       assignee: tpl.assignee,
       concertId: concert.id,
+      documentIds: [],
       createdAt: new Date().toISOString(),
     }
   })

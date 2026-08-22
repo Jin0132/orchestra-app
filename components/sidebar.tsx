@@ -8,15 +8,17 @@ import {
   Users,
   Music,
   CheckSquare,
+  FolderOpen,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export type Page = "dashboard" | "seating" | "contracts" | "portal" | "tasks"
+export type Page = "dashboard" | "seating" | "contracts" | "portal" | "tasks" | "documents"
 
 export const navItems: { id: Page; label: string; mobileLabel: string; icon: React.ElementType }[] = [
   { id: "tasks",      label: "タスク管理",      mobileLabel: "タスク",    icon: CheckSquare },
+  { id: "documents",  label: "書類",            mobileLabel: "書類",      icon: FolderOpen },
   { id: "seating",    label: "セッティング表",  mobileLabel: "座席",      icon: Grid3X3 },
   { id: "dashboard",  label: "ダッシュボード",  mobileLabel: "ホーム",    icon: LayoutDashboard },
   { id: "contracts",  label: "エキストラ契約",  mobileLabel: "契約",      icon: FileText },
@@ -24,7 +26,7 @@ export const navItems: { id: Page; label: string; mobileLabel: string; icon: Rea
 ]
 
 /** PC サイドバー用の表示順（ダッシュボード先頭） */
-const sidebarOrder: Page[] = ["dashboard", "tasks", "seating", "contracts", "portal"]
+const sidebarOrder: Page[] = ["dashboard", "tasks", "documents", "seating", "contracts", "portal"]
 const sidebarItems = sidebarOrder.map((id) => navItems.find((n) => n.id === id)!)
 
 /* ─── PC サイドバー ─────────────────────────────────── */

@@ -58,6 +58,8 @@ import {
   DEFAULT_TEMPLATES,
 } from "@/lib/task-store"
 import { useAppData } from "@/hooks/use-app-data"
+import { useDocuments } from "@/hooks/use-documents"
+import type { PortalDocument } from "@/lib/documents"
 
 /* ─── 色定義 ────────────────────────────────────── */
 const PRIORITY_COLOR: Record<Priority, string> = {
@@ -75,6 +77,7 @@ const CATEGORY_COLOR: Record<Category, string> = {
 /* ─── メインコンポーネント ─────────────────────── */
 export function Tasks() {
   const { data: appData, loading: appLoading, saving: appSaving, update: appUpdate } = useAppData()
+  const { documents } = useDocuments()
   /* テンプレートのみ localStorage で管理（端末ごとのカスタム設定） */
   const [templates, setTemplates] = useState<TaskTemplate[]>(DEFAULT_TEMPLATES)
   const [hydrated, setHydrated] = useState(false)
@@ -264,6 +267,7 @@ export function Tasks() {
                   key={task.id}
                   task={task}
                   concerts={appData.taskConcerts}
+                  documents={documents}
                   onToggle={toggleTask}
                   onEdit={setEditTask}
                   onRemove={removeTask}
@@ -281,6 +285,7 @@ export function Tasks() {
                   key={task.id}
                   task={task}
                   concerts={appData.taskConcerts}
+                  documents={documents}
                   onToggle={toggleTask}
                   onEdit={setEditTask}
                   onRemove={removeTask}
@@ -307,6 +312,7 @@ export function Tasks() {
                   key={concert.id}
                   concert={concert}
                   taskCount={appData.tasks.filter((t) => t.concertId === concert.id).length}
+                  documentCount={documents.filter((d) => d.concertId === concert.id).length}
                   onGenerate={generateTasks}
                   onRemove={removeConcert}
                 />
@@ -345,6 +351,7 @@ export function Tasks() {
         open={addOpen || editTask !== null}
         initial={editTask}
         concerts={appData.taskConcerts}
+        documents={documents}
         onSave={(t) => { saveTask(t); setAddOpen(false); setEditTask(null) }}
         onClose={() => { setAddOpen(false); setEditTask(null) }}
       />
@@ -371,12 +378,14 @@ export function Tasks() {
 function TaskCard({
   task,
   concerts,
+  documents,
   onToggle,
   onEdit,
   onRemove,
 }: {
   task: Task
   concerts: Concert[]
+  documents: PortalDocument[]
   onToggle: (id: string) => void
   onEdit: (t: Task) => void
   onRemove: (id: string) => void
@@ -384,6 +393,9 @@ function TaskCard({
   const concertName = task.concertId
     ? concerts.find((c) => c.id === task.concertId)?.name
     : null
+  const linkedDocs = documents.filter((d) =>
+    (task.documentIds ?? []).includes(d.id) || (task.concertId && d.concertId === task.concertId),
+  ).slice(0, 3)
   return (
     <Card className={`border border-border bg-card transition-opacity ${task.done ? "opacity-60" : ""}`}>
       <CardContent className="py-3 px-4">
@@ -423,6 +435,21 @@ function TaskCard({
                   {concertName}
                 </span>
               )}
+              {linkedDocs.map((doc) => (
+                doc.url ? (
+                  <a
+                    key={doc.id}
+                    href={doc.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-primary hover:underline truncate max-w-28"
+                  >
+                    {doc.title}
+                  </a>
+                ) : (
+                  <span key={doc.id} className="text-[10px] text-muted-foreground truncate max-w-28">{doc.title}</span>
+                )
+              ))}
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -453,11 +480,13 @@ function TaskCard({
 function ConcertCard({
   concert,
   taskCount,
+  documentCount,
   onGenerate,
   onRemove,
 }: {
   concert: Concert
   taskCount: number
+  documentCount: number
   onGenerate: (c: Concert) => void
   onRemove: (id: string) => void
 }) {
@@ -477,6 +506,7 @@ function ConcertCard({
                 <span className="text-xs text-muted-foreground">{concert.venue}</span>
               )}
               <span className="text-xs text-muted-foreground">タスク {taskCount}件</span>
+              <span className="text-xs text-muted-foreground">書類 {documentCount}件</span>
               {concert.tasksGenerated && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-green-500/10 text-green-600 border-green-500/30">
                   生成済み
@@ -556,12 +586,14 @@ function TaskDialog({
   open,
   initial,
   concerts,
+  documents,
   onSave,
   onClose,
 }: {
   open: boolean
   initial: Task | null
   concerts: Concert[]
+  documents: PortalDocument[]
   onSave: (t: Task) => void
   onClose: () => void
 }) {
@@ -574,6 +606,7 @@ function TaskDialog({
     dueDate: null,
     assignee: "",
     concertId: null,
+    documentIds: [],
     createdAt: new Date().toISOString(),
   }
   const [form, setForm] = useState<Task>(initial ?? blank)
@@ -655,6 +688,34 @@ function TaskDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {documents.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>関連書類（任意）</Label>
+              <div className="max-h-32 overflow-y-auto rounded-md border border-border p-2 flex flex-col gap-1.5">
+                {documents.filter((d) => d.status !== "archived").map((doc) => {
+                  const checked = (form.documentIds ?? []).includes(doc.id)
+                  return (
+                    <label key={doc.id} className="flex items-center gap-2 text-xs text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const current = form.documentIds ?? []
+                          set(
+                            "documentIds",
+                            e.target.checked
+                              ? [...current, doc.id]
+                              : current.filter((id) => id !== doc.id),
+                          )
+                        }}
+                      />
+                      <span className="truncate">{doc.title}</span>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>

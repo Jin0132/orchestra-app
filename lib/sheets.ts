@@ -1,4 +1,5 @@
 import { google } from "googleapis"
+import { getGoogleAuth, getSpreadsheetId } from "@/lib/google-auth"
 
 export const MEMBER_SHEET_NAMES = ["Member page", "Members"] as const
 
@@ -108,24 +109,9 @@ export function findDataRowIndexById(
   return dataRows.findIndex((r) => String(r[idx.id] ?? "").trim() === id)
 }
 
-function getAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
-  if (!raw) {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not set")
-  }
-  const key = JSON.parse(raw) as { client_email: string; private_key: string }
-  return new google.auth.GoogleAuth({
-    credentials: key,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  })
-}
-
 export async function getSheetsClient() {
-  const auth = getAuth()
-  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID
-  if (!spreadsheetId) {
-    throw new Error("GOOGLE_SPREADSHEET_ID is not set")
-  }
+  const auth = getGoogleAuth()
+  const spreadsheetId = getSpreadsheetId()
   const sheets = google.sheets({ version: "v4", auth })
   return { sheets, spreadsheetId }
 }

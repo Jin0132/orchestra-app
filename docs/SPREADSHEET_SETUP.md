@@ -173,3 +173,9 @@ Google Sheets API 用のパッケージ（`googleapis`）を使うため、プ�
 - 例: 「Member page 2024」「Member page 2025」のようにシートを分け、`.env.local` の `GOOGLE_SPREADSHEET_ID` やシート名を切り替えて、見たい期のシートだけをポータルに表示する運用も可能です（その場合はコードでシート名を設定できるようにする対応が必要です）。
 
 まずは **方法 A** で列を 1 つ増やし、スプレッドシートのフィルタで期間を絞りながら管理するのが手軽です。
+
+---
+
+## 書類台帳（ドキュメント / Drive）
+
+同じサービスアカウントで Google ドキュメントと Drive も使えます。手順は [DOCUMENTS_SETUP.md](./DOCUMENTS_SETUP.md) を参照してください。

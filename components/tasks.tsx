@@ -59,7 +59,7 @@ import {
 } from "@/lib/task-store"
 import { useAppData } from "@/hooks/use-app-data"
 import { useDocuments } from "@/hooks/use-documents"
-import type { PortalDocument } from "@/lib/documents"
+import type { PortalDocument } from "@/lib/document-catalog"
 
 /* ─── 色定義 ────────────────────────────────────── */
 const PRIORITY_COLOR: Record<Priority, string> = {

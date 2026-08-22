@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import type { PortalDocument } from "@/lib/documents"
+import type { PortalDocument } from "@/lib/document-catalog"
 
 export function useDocuments() {
   const [documents, setDocuments] = useState<PortalDocument[]>([])

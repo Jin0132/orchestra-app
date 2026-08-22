@@ -1,10 +1,9 @@
 import { google, type docs_v1, type drive_v3 } from "googleapis"
 import { getDriveFolderId, getGoogleAuth } from "@/lib/google-auth"
 import {
-  isDocumentKind,
   parseGoogleResource,
   type DocumentKind,
-} from "@/lib/documents"
+} from "@/lib/document-catalog"
 
 export type InspectedDocument = {
   title: string

@@ -47,7 +47,7 @@ import {
   type DocumentKind,
   type DocumentStatus,
   type PortalDocument,
-} from "@/lib/documents"
+} from "@/lib/document-catalog"
 
 type DriveListedFile = {
   id: string

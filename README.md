@@ -168,3 +168,4 @@ npm start
 
 - [docs/SPREADSHEET_SETUP.md](./docs/SPREADSHEET_SETUP.md) — サービスアカウント・シート ID・トラブルシュート
 - [docs/DOCUMENTS_SETUP.md](./docs/DOCUMENTS_SETUP.md) — Drive / Docs API と共有フォルダ
+- [docs/ARSIS_LAB_BRIEFING.md](./docs/ARSIS_LAB_BRIEFING.md) — arsis-lab 向け全体把握（貼り付け用。lab を書き換えない）

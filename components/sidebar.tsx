@@ -7,7 +7,6 @@ import {
   FileText,
   Users,
   Music,
-  CheckSquare,
   FolderOpen,
   ChevronLeft,
   ChevronRight,
@@ -16,8 +15,8 @@ import { Button } from "@/components/ui/button"
 
 export type Page = "dashboard" | "seating" | "contracts" | "portal" | "tasks" | "documents"
 
+/** ボトムナビ用（ホーム＝dashboard を中央に配置。タスクはナビ非表示） */
 export const navItems: { id: Page; label: string; mobileLabel: string; icon: React.ElementType }[] = [
-  { id: "tasks",      label: "タスク管理",      mobileLabel: "タスク",    icon: CheckSquare },
   { id: "documents",  label: "書類",            mobileLabel: "書類",      icon: FolderOpen },
   { id: "seating",    label: "セッティング表",  mobileLabel: "座席",      icon: Grid3X3 },
   { id: "dashboard",  label: "ダッシュボード",  mobileLabel: "ホーム",    icon: LayoutDashboard },
@@ -25,8 +24,8 @@ export const navItems: { id: Page; label: string; mobileLabel: string; icon: Rea
   { id: "portal",     label: "団員情報",        mobileLabel: "団員",      icon: Users },
 ]
 
-/** PC サイドバー用の表示順（ダッシュボード先頭） */
-const sidebarOrder: Page[] = ["dashboard", "tasks", "documents", "seating", "contracts", "portal"]
+/** PC サイドバー用の表示順（ダッシュボード先頭。タスクはホームの直近タスクから遷移） */
+const sidebarOrder: Page[] = ["dashboard", "documents", "seating", "contracts", "portal"]
 const sidebarItems = sidebarOrder.map((id) => navItems.find((n) => n.id === id)!)
 
 /* ─── PC サイドバー ─────────────────────────────────── */
@@ -118,23 +117,28 @@ export function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
       aria-label="メインナビゲーション"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="flex items-stretch">
+      <ul className="flex items-end">
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = currentPage === item.id
+          const isHome = item.id === "dashboard"
           return (
             <li key={item.id} className="flex-1">
               <button
                 onClick={() => onNavigate(item.id)}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 w-full py-2.5 text-[10px] font-medium transition-colors",
+                  "flex flex-col items-center justify-end w-full font-medium transition-colors pb-2.5",
+                  isHome
+                    ? "gap-1 pt-2 text-[11px]"
+                    : "gap-0.5 pt-2.5 text-[10px]",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Icon
                   className={cn(
-                    "w-5 h-5 transition-transform",
+                    "transition-transform",
+                    isHome ? "w-6 h-6" : "w-5 h-5",
                     isActive && "scale-110",
                   )}
                 />

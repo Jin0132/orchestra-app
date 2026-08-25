@@ -18,6 +18,8 @@ import {
   Trash2,
   Pencil,
   Loader2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
 import { TasksSummary } from "@/components/tasks"
 import { DocumentsSummary } from "@/components/documents"
@@ -26,7 +28,7 @@ import { ja } from "date-fns/locale"
 import { toast } from "sonner"
 import { useAppData, type PracticeItem } from "@/hooks/use-app-data"
 import { generateId } from "@/lib/task-store"
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 
 export function Dashboard({
   onNavigateToMembers,
@@ -131,9 +133,9 @@ export function Dashboard({
   )
 
   return (
-    <div className={`flex flex-col gap-6${loading ? " pointer-events-none" : ""}`}>
+    <div className={`flex flex-col gap-4${loading ? " pointer-events-none" : ""}`}>
       {/* ヘッダー */}
-      <header className="flex flex-col sm:flex-row sm:items-center gap-4">
+      <header className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-2 shrink-0">
           <h2 className="text-2xl font-bold tracking-tight text-foreground">ダッシュボード</h2>
           {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
@@ -175,61 +177,69 @@ export function Dashboard({
         )}
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* 練習スケジュール */}
-        <Card className="lg:col-span-2 border border-border bg-card">
-          <CardHeader className="pb-3">
+        <Card className="lg:col-span-2 border border-border bg-card gap-3 py-4">
+          <CardHeader className="px-4 pb-0">
             <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
               <CalendarIcon className="w-4 h-4 text-primary" />
               練習スケジュール
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="px-4 space-y-3">
             <PracticeForm onSubmit={addPractice} disabled={loading} />
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col">
               {loading ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">読み込み中…</p>
+                <p className="text-sm text-muted-foreground py-3 text-center">読み込み中…</p>
               ) : data.practices.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">練習日はまだ登録されていません</p>
+                <p className="text-sm text-muted-foreground py-3 text-center">練習日はまだ登録されていません</p>
               ) : (
-                data.practices.map((event) => (
-                  <div key={event.id} className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
-                    <div className="flex flex-col items-center w-12 shrink-0">
-                      <span className="text-xs text-muted-foreground">{format(parseISO(event.date), "E", { locale: ja })}</span>
-                      <span className="text-lg font-bold text-foreground">{format(parseISO(event.date), "M/d", { locale: ja })}</span>
-                    </div>
-                    <div className="h-10 w-px bg-border" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{event.title}</p>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        {event.time && <span className="text-xs text-muted-foreground">{event.time}</span>}
-                        {event.location && <span className="text-xs text-muted-foreground">{event.location}</span>}
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive" onClick={() => removePractice(event.id)} aria-label="削除">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))
+                <ul className="divide-y divide-border">
+                  {data.practices.map((event) => (
+                    <li key={event.id} className="flex items-center gap-3 py-2 group">
+                      <span className="text-sm font-medium text-foreground tabular-nums shrink-0 w-[4.5rem]">
+                        {format(parseISO(event.date), "M/d(E)", { locale: ja })}
+                      </span>
+                      <span className="flex-1 min-w-0 text-sm text-foreground truncate">
+                        {event.title}
+                        {(event.time || event.location) && (
+                          <span className="text-muted-foreground font-normal">
+                            {" · "}
+                            {[event.time, event.location].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                        onClick={() => removePractice(event.id)}
+                        aria-label="削除"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <TasksSummary onNavigate={onNavigateToTasks} />
           <DocumentsSummary onNavigate={onNavigateToDocuments} />
 
           {/* エキストラ管理 */}
-          <Card className="border border-border bg-card">
-            <CardHeader className="pb-3">
+          <Card className="border border-border bg-card gap-3 py-4">
+            <CardHeader className="px-4 pb-0">
               <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
                 <Users className="w-4 h-4 text-primary" />
                 エキストラ管理
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">登録・依頼状況は団員情報ページで管理します。</p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-2xl font-bold text-foreground">{extrasCount}</span>
                 <span className="text-sm text-muted-foreground">名のエキストラ登録</span>
@@ -255,6 +265,7 @@ function PracticeForm({
   onSubmit: (item: Omit<PracticeItem, "id">) => void
   disabled?: boolean
 }) {
+  const [open, setOpen] = useState(false)
   const [date, setDate] = useState("")
   const [title, setTitle] = useState("")
   const [time, setTime] = useState("")
@@ -266,34 +277,53 @@ function PracticeForm({
     if (!date.trim() || !title.trim()) { toast.error("日付とタイトルを入力してください"); return }
     onSubmit({ date, title, time, location })
     setDate(""); setTitle(""); setTime(""); setLocation("")
+    setOpen(false)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 p-4 rounded-lg border border-border bg-secondary/30">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="practice-date">日付</Label>
-          <Input id="practice-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="practice-title">タイトル</Label>
-          <Input id="practice-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例: オーケストラ練習" disabled={disabled} />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="practice-time">時間（任意）</Label>
-          <Input id="practice-time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="例: 13:00-17:00" disabled={disabled} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="practice-location">場所（任意）</Label>
-          <Input id="practice-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="例: 市民ホール" disabled={disabled} />
-        </div>
-      </div>
-      <Button type="submit" size="sm" className="w-full sm:w-auto" disabled={disabled}>
-        <Plus className="w-4 h-4 mr-2" />
-        練習日を追加
-      </Button>
-    </form>
+    <div className="rounded-lg border border-border bg-secondary/30 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-secondary/50 transition-colors"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 font-medium">
+          <Plus className="w-4 h-4 text-muted-foreground" />
+          練習日を追加
+        </span>
+        {open
+          ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+      </button>
+      {open && (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 px-4 pb-4 pt-1 border-t border-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="practice-date">日付</Label>
+              <Input id="practice-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="practice-title">タイトル</Label>
+              <Input id="practice-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例: オーケストラ練習" disabled={disabled} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="practice-time">時間（任意）</Label>
+              <Input id="practice-time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="例: 13:00-17:00" disabled={disabled} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="practice-location">場所（任意）</Label>
+              <Input id="practice-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="例: 市民ホール" disabled={disabled} />
+            </div>
+          </div>
+          <Button type="submit" size="sm" className="w-full sm:w-auto" disabled={disabled}>
+            <Plus className="w-4 h-4 mr-2" />
+            追加する
+          </Button>
+        </form>
+      )}
+    </div>
   )
 }

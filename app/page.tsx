@@ -33,7 +33,7 @@ export default function OrchestraApp() {
           </header>
 
           {/* ページコンテンツ。モバイルはボトムナビ分の余白を確保 */}
-          <div className="w-full px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 pb-28 md:pb-8">
+          <div className="w-full px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 pb-32 md:pb-8">
             {currentPage === "dashboard"  && (
               <Dashboard
                 onNavigateToMembers={() => setCurrentPage("portal")}

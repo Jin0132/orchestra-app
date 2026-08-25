@@ -886,8 +886,8 @@ export function TasksSummary({
   }
 
   return (
-    <Card className="border border-border bg-card">
-      <CardHeader className="pb-3">
+    <Card className="border border-border bg-card gap-3 py-4">
+      <CardHeader className="px-4 pb-0">
         <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
           <CheckSquare className="w-4 h-4 text-primary" />
           直近タスク
@@ -902,16 +902,16 @@ export function TasksSummary({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-1">
+      <CardContent className="px-4 space-y-1">
         {loading ? (
-          <p className="text-xs text-muted-foreground py-2 text-center">読み込み中…</p>
+          <p className="text-xs text-muted-foreground py-1.5 text-center">読み込み中…</p>
         ) : pending.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2 text-center">
+          <p className="text-xs text-muted-foreground py-1.5 text-center">
             {data.tasks.length === 0 ? "タスクはありません" : "未完了のタスクはありません"}
           </p>
         ) : (
           pending.map((task) => (
-            <div key={task.id} className="flex items-center gap-2 py-1 group">
+            <div key={task.id} className="flex items-center gap-2 py-0.5 group">
               <button
                 type="button"
                 onClick={() => toggle(task.id)}

@@ -721,8 +721,8 @@ export function DocumentsSummary({
   }, [documents, upcoming])
 
   return (
-    <Card className="border border-border bg-card">
-      <CardHeader className="pb-3">
+    <Card className="border border-border bg-card gap-3 py-4">
+      <CardHeader className="px-4 pb-0">
         <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
           <FolderOpen className="w-4 h-4 text-primary" />
           関連書類
@@ -740,14 +740,14 @@ export function DocumentsSummary({
           <p className="text-xs text-muted-foreground mt-1">{upcoming.name} に紐づく書類を優先表示</p>
         )}
       </CardHeader>
-      <CardContent className="space-y-1">
+      <CardContent className="px-4 space-y-1">
         {loading ? (
-          <p className="text-xs text-muted-foreground py-2 text-center">読み込み中…</p>
+          <p className="text-xs text-muted-foreground py-1.5 text-center">読み込み中…</p>
         ) : related.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2 text-center">登録された書類はまだありません</p>
+          <p className="text-xs text-muted-foreground py-1.5 text-center">登録された書類はまだありません</p>
         ) : (
           related.map((doc) => (
-            <div key={doc.id} className="flex items-center gap-2 py-1">
+            <div key={doc.id} className="flex items-center gap-2 py-0.5">
               {doc.url ? (
                 <a href={doc.url} target="_blank" rel="noreferrer" className="flex-1 text-sm text-foreground truncate hover:underline">
                   {doc.title}

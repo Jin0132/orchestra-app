@@ -50,33 +50,56 @@ const DEFAULT_DATA: AppData = {
   taskConcerts: [],
 }
 
+let snapshot: AppData | null = null
+let inflight: Promise<AppData> | null = null
+
+function parseAppData(raw: Partial<AppData> | null | undefined): AppData {
+  return {
+    concert: raw?.concert ?? DEFAULT_DATA.concert,
+    practices: Array.isArray(raw?.practices) ? raw.practices : [],
+    tasks: Array.isArray(raw?.tasks) ? raw.tasks : [],
+    contracts: Array.isArray(raw?.contracts) ? raw.contracts : [],
+    taskConcerts: Array.isArray(raw?.taskConcerts) ? raw.taskConcerts : [],
+  }
+}
+
+/** スプラッシュと各画面で同じ初回取得を共有する */
+export function prefetchAppData(): Promise<AppData> {
+  if (snapshot) return Promise.resolve(snapshot)
+  if (!inflight) {
+    inflight = fetch("/api/app-data", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((raw: Partial<AppData>) => {
+        snapshot = parseAppData(raw)
+        return snapshot
+      })
+      .catch((e) => {
+        inflight = null
+        throw e
+      })
+  }
+  return inflight
+}
+
 /* ─── フック ────────────────────────────────────── */
 export function useAppData() {
-  const [data, setData] = useState<AppData>(DEFAULT_DATA)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<AppData>(snapshot ?? DEFAULT_DATA)
+  const [loading, setLoading] = useState(!snapshot)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /* 初回ロード */
   useEffect(() => {
+    if (snapshot) {
+      setData(snapshot)
+      setLoading(false)
+      return
+    }
     setLoading(true)
-    fetch("/api/app-data", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((raw: Partial<{
-        concert: BasicInfo
-        practices: PracticeItem[]
-        tasks: Task[]
-        contracts: ExtraContract[]
-        taskConcerts: Concert[]
-      }>) => {
-        setData({
-          concert: raw.concert ?? DEFAULT_DATA.concert,
-          practices: Array.isArray(raw.practices) ? raw.practices : [],
-          tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
-          contracts: Array.isArray(raw.contracts) ? raw.contracts : [],
-          taskConcerts: Array.isArray(raw.taskConcerts) ? raw.taskConcerts : [],
-        })
+    prefetchAppData()
+      .then((next) => {
+        setData(next)
         setError(null)
       })
       .catch((e) => setError(String(e)))
@@ -107,6 +130,7 @@ export function useAppData() {
   const update = useCallback((patch: Partial<AppData>) => {
     setData((prev) => {
       const next = { ...prev, ...patch }
+      snapshot = next
       scheduleSave(next)
       return next
     })

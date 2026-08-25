@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { prefetchAppData } from "@/hooks/use-app-data"
 
 type AuthState =
   | { status: "loading" }
@@ -55,6 +56,7 @@ export function PortalAuthGate({ children }: { children: React.ReactNode }) {
         setState({ status: "login", error: msg || "認証に失敗しました" })
         return
       }
+      await prefetchAppData().catch(() => null)
       setState({ status: "ready" })
     } catch {
       setState({ status: "login", error: "通信エラーです" })
@@ -65,9 +67,11 @@ export function PortalAuthGate({ children }: { children: React.ReactNode }) {
 
   if (state.status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        読み込み中…
-      </div>
+      <div
+        className="min-h-screen bg-white"
+        aria-busy="true"
+        aria-label="読み込み中"
+      />
     )
   }
 

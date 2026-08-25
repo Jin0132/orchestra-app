@@ -4,7 +4,7 @@
   "description": "Arsis Chamber Orchestra 運営ポータル",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a2744",
+  "background_color": "#ffffff",
   "theme_color": "#1a2744",
   "orientation": "portrait",
   "icons": [

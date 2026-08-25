@@ -131,7 +131,7 @@ export function Dashboard({
   )
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={`flex flex-col gap-6${loading ? " pointer-events-none" : ""}`}>
       {/* ヘッダー */}
       <header className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-center gap-2 shrink-0">
@@ -185,7 +185,7 @@ export function Dashboard({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <PracticeForm onSubmit={addPractice} />
+            <PracticeForm onSubmit={addPractice} disabled={loading} />
             <div className="flex flex-col gap-3">
               {loading ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">読み込み中…</p>
@@ -248,7 +248,13 @@ export function Dashboard({
   )
 }
 
-function PracticeForm({ onSubmit }: { onSubmit: (item: Omit<PracticeItem, "id">) => void }) {
+function PracticeForm({
+  onSubmit,
+  disabled = false,
+}: {
+  onSubmit: (item: Omit<PracticeItem, "id">) => void
+  disabled?: boolean
+}) {
   const [date, setDate] = useState("")
   const [title, setTitle] = useState("")
   const [time, setTime] = useState("")
@@ -256,6 +262,7 @@ function PracticeForm({ onSubmit }: { onSubmit: (item: Omit<PracticeItem, "id">)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (disabled) return
     if (!date.trim() || !title.trim()) { toast.error("日付とタイトルを入力してください"); return }
     onSubmit({ date, title, time, location })
     setDate(""); setTitle(""); setTime(""); setLocation("")
@@ -266,24 +273,24 @@ function PracticeForm({ onSubmit }: { onSubmit: (item: Omit<PracticeItem, "id">)
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="practice-date">日付</Label>
-          <Input id="practice-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input id="practice-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="practice-title">タイトル</Label>
-          <Input id="practice-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例: オーケストラ練習" />
+          <Input id="practice-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例: オーケストラ練習" disabled={disabled} />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="practice-time">時間（任意）</Label>
-          <Input id="practice-time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="例: 13:00-17:00" />
+          <Input id="practice-time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="例: 13:00-17:00" disabled={disabled} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="practice-location">場所（任意）</Label>
-          <Input id="practice-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="例: 市民ホール" />
+          <Input id="practice-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="例: 市民ホール" disabled={disabled} />
         </div>
       </div>
-      <Button type="submit" size="sm" className="w-full sm:w-auto">
+      <Button type="submit" size="sm" className="w-full sm:w-auto" disabled={disabled}>
         <Plus className="w-4 h-4 mr-2" />
         練習日を追加
       </Button>

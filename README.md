@@ -168,4 +168,6 @@ npm start
 
 - [docs/SPREADSHEET_SETUP.md](./docs/SPREADSHEET_SETUP.md) — サービスアカウント・シート ID・トラブルシュート
 - [docs/DOCUMENTS_SETUP.md](./docs/DOCUMENTS_SETUP.md) — Drive / Docs API と共有フォルダ
-- [docs/ARSIS_LAB_BRIEFING.md](./docs/ARSIS_LAB_BRIEFING.md) — arsis-lab 向け全体把握（貼り付け用。lab を書き換えない）
+- [docs/ARSIS_LAB_BRIEFING.md](./docs/ARSIS_LAB_BRIEFING.md) — Arsis 全体把握の正本（4箱）
+- **開発課題**は [課題ボード](https://docs.google.com/spreadsheets/d/1tKo8IElmIwIU0sNcC5vAEjqcNklKjZh_oGCa9aO6QlU/edit)（Lab シート）に集約。公演の日常タスクはマスタブック（AppData）へ。
+- **このチャット**: Portal の実装と運営ガイド／Drive。課題の口語リストは `arsis-lab` へ。

@@ -1,0 +1,27 @@
+---
+description: このチャットでやること／別フォルダへ送ること
+alwaysApply: true
+---
+
+# 選別（orchestra-app-1 / Portal）
+
+このチャットは **Portal の実装**と **Google ドキュメント／Drive の編集**の本拠。
+
+## ここでやる
+
+- ダッシュボード、団員、書類台帳、セッティング表タブ（旧）、API
+- 『ArsisCO 運営ガイド』・Drive・BRIEFING（正本は `docs/ARSIS_LAB_BRIEFING.md`）
+- 「課題ボードの Pxx / Ixx / Dxx（ガイド本文）」の実装
+
+## ここでやらない（フォルダを開き直すよう指示する）
+
+口語の課題リストだけ貼られたら、**ここでは細分化保存しない**。Lab へ送る。
+
+| 内容 | 開くフォルダ |
+|------|----------------|
+| 課題の受付・細分化・課題ボード追記、全体地図 | `書類/Code_Project/arsis-lab` |
+| 公開サイト | `書類/Code_Project/arsis-site` |
+| セッティング表アプリ（setting-app） | `書類/Code_Project/setting-app` |
+| 4箱以外（quickask 等） | そのリポ |
+
+文言例: 「課題の仕分けは Lab です。`arsis-lab` を開いて貼ってください。Portal の実装に入るときは、課題 ID（例: P01）をこちらにください。」

@@ -7,10 +7,10 @@
 ## このドキュメントの場所
 
 - **パス**: プロジェクト内の `docs/SPREADSHEET_SETUP.md`
-- **フルパス例**: `orchestra-app-1/docs/SPREADSHEET_SETUP.md`
+- **フルパス**: `/Users/User/Documents/Code_Project/orchestra-app-1/docs/SPREADSHEET_SETUP.md`
 - **開き方**:
-  - Cursor / VS Code の左のファイル一覧で `docs` フォルダ → `SPREADSHEET_SETUP.md` をクリック
-  - またはエクスプローラーで上記フォルダを開き、メモ帳などで `SPREADSHEET_SETUP.md` を開く
+  - Cursor の左のファイル一覧で `docs` フォルダ → `SPREADSHEET_SETUP.md` をクリック
+  - または Finder で上記フォルダを開き、テキストエディタで `SPREADSHEET_SETUP.md` を開く
 
 ---
 
@@ -20,12 +20,12 @@
 
 プロジェクトの**ルートフォルダ**（`package.json` があるフォルダ）に、`.env.local` という名前のファイルを作成します。
 
-- 例: `orchestra-app-1/.env.local`
+- 例: `/Users/User/Documents/Code_Project/orchestra-app-1/.env.local`
 - このファイルは git に含めないでください（秘密鍵が含まれるため）。通常、`.gitignore` に `.env.local` が含まれていれば自動的に無視されます。
 
 ### 6-2. GOOGLE_SERVICE_ACCOUNT_JSON の設定
 
-1. Google Cloud コンソールでサービスアカウントの「鍵」から JSON キーをダウンロードしたら、その JSON ファイルをメモ帳などで開きます。
+1. Google Cloud コンソールでサービスアカウントの「鍵」から JSON キーをダウンロードしたら、その JSON ファイルをテキストエディタで開きます。
 2. **中身をすべて 1 行の文字列として** `.env.local` に書きます。
    - 改行は削除するか、`\n` に置き換えてください。
    - 値は**ダブルクォート `"` で囲み**、中の `"` は `\"` でエスケープします。
@@ -74,13 +74,13 @@ GOOGLE_SPREADSHEET_ID=あなたのスプレッドシートID
 
 Google Sheets API 用のパッケージ（`googleapis`）を使うため、プロジェクトで一度だけ依存関係をインストールします。
 
-1. **ターミナル（PowerShell やコマンドプロンプト）を開く**
+1. **ターミナルを開く**
 2. **プロジェクトのフォルダに移動する**
-   ```powershell
-   cd c:\Users\User\Desktop\Orchestra-App
+   ```bash
+   cd /Users/User/Documents/Code_Project/orchestra-app-1
    ```
 3. **次のコマンドを実行する**
-   ```powershell
+   ```bash
    npm install
    ```
    - `package.json` に書かれたパッケージ（含む `googleapis`）が `node_modules` にインストールされます。
@@ -89,7 +89,7 @@ Google Sheets API 用のパッケージ（`googleapis`）を使うため、プ�
 ### 7-2. 開発サーバーの起動（npm run dev）
 
 1. **同じプロジェクトフォルダで**、次のコマンドを実行します。
-   ```powershell
+   ```bash
    npm run dev
    ```
 2. ターミナルに次のような表示が出れば起動成功です。
@@ -106,11 +106,11 @@ Google Sheets API 用のパッケージ（`googleapis`）を使うため、プ�
 本番環境で動かす場合の流れです。
 
 1. **ビルド**
-   ```powershell
+   ```bash
    npm run build
    ```
 2. **起動**
-   ```powershell
+   ```bash
    npm start
    ```
    - 本番でも、同じ `.env.local`（またはサーバーに設定した環境変数）が読み込まれます。本番サーバーでは、Vercel や Netlify などの「環境変数」設定画面で `GOOGLE_SERVICE_ACCOUNT_JSON` と `GOOGLE_SPREADSHEET_ID` を設定してください。

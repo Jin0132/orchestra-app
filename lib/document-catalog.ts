@@ -40,6 +40,7 @@ export type DocumentRow = {
   owner: string
   fileId: string
   updatedAt: string
+  memberVisible: string
 }
 
 export type PortalDocument = {
@@ -55,6 +56,7 @@ export type PortalDocument = {
   owner: string
   fileId: string
   updatedAt: string
+  memberVisible: boolean
 }
 
 export const DOCUMENT_HEADERS: (keyof DocumentRow)[] = [
@@ -70,7 +72,17 @@ export const DOCUMENT_HEADERS: (keyof DocumentRow)[] = [
   "owner",
   "fileId",
   "updatedAt",
+  "memberVisible",
 ]
+
+export function parseMemberVisible(raw: string): boolean {
+  const s = String(raw ?? "").trim().toLowerCase()
+  return s === "1" || s === "true" || s === "on"
+}
+
+export function toMemberVisibleCell(value: boolean): string {
+  return value ? "ON" : "OFF"
+}
 
 export const KIND_LABEL: Record<DocumentKind, string> = {
   doc: "ドキュメント",

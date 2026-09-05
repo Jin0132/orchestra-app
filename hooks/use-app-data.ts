@@ -26,6 +26,12 @@ export interface PracticeItem {
   location: string
 }
 
+export interface MemberNotice {
+  id: string
+  body: string
+  createdAt: string
+}
+
 export interface ExtraContract {
   id: string
   name: string
@@ -40,6 +46,7 @@ export interface AppData {
   tasks: Task[]
   contracts: ExtraContract[]
   taskConcerts: Concert[]
+  notices: MemberNotice[]
 }
 
 const DEFAULT_DATA: AppData = {
@@ -48,19 +55,38 @@ const DEFAULT_DATA: AppData = {
   tasks: [],
   contracts: [],
   taskConcerts: [],
+  notices: [],
 }
 
 let snapshot: AppData | null = null
 let inflight: Promise<AppData> | null = null
 
-function parseAppData(raw: Partial<AppData> | null | undefined): AppData {
+function parseAppData(raw: (Partial<AppData> & { memberMemo?: unknown }) | null | undefined): AppData {
   return {
     concert: raw?.concert ?? DEFAULT_DATA.concert,
     practices: Array.isArray(raw?.practices) ? raw.practices : [],
     tasks: Array.isArray(raw?.tasks) ? raw.tasks : [],
     contracts: Array.isArray(raw?.contracts) ? raw.contracts : [],
     taskConcerts: Array.isArray(raw?.taskConcerts) ? raw.taskConcerts : [],
+    notices: parseNotices(raw),
   }
+}
+
+function parseNotices(raw: Partial<AppData> & { memberMemo?: unknown } | null | undefined): MemberNotice[] {
+  if (Array.isArray(raw?.notices)) {
+    return raw.notices.filter((n): n is MemberNotice =>
+      Boolean(n && typeof n === "object" && typeof n.id === "string" && typeof n.body === "string"),
+    )
+  }
+  const legacy = typeof raw?.memberMemo === "string" ? raw.memberMemo.trim() : ""
+  if (!legacy) return []
+  return [{ id: "migrated-memo", body: legacy, createdAt: "" }]
+}
+
+/** ログイン後に運営用の全データを取り直す */
+export function resetAppDataCache() {
+  snapshot = null
+  inflight = null
 }
 
 /** スプラッシュと各画面で同じ初回取得を共有する */

@@ -8,6 +8,7 @@ import {
   isDocumentCategory,
   lastColumnLetter,
   loadDocumentsSheet,
+  ensureDocumentHeaderColumns,
   nowYmdHm,
   portalDocumentToRow,
   documentRowToValues,
@@ -56,9 +57,10 @@ export async function POST(request: NextRequest) {
       owner: body.owner?.trim() ?? "",
       fileId: created.fileId,
       updatedAt: nowYmdHm(),
+      memberVisible: false,
     }
 
-    const { sheets, spreadsheetId, headerRow } = await loadDocumentsSheet()
+    const { sheets, spreadsheetId, headerRow } = await ensureDocumentHeaderColumns(await loadDocumentsSheet())
     const headers = headerRow.length ? headerRow : [...DOCUMENT_HEADERS]
     const values = documentRowToValues(headers, portalDocumentToRow(document))
     const lastCol = lastColumnLetter(headers, values)

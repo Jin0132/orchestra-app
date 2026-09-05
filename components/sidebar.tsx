@@ -6,7 +6,6 @@ import {
   Grid3X3,
   FileText,
   Users,
-  Music,
   FolderOpen,
   ChevronLeft,
   ChevronRight,
@@ -41,25 +40,10 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onToggle }: Sideba
     <aside
       className={cn(
         "hidden md:flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
-        "sticky top-0 h-screen shrink-0 transition-[width] duration-300 ease-out",
+        "h-full shrink-0 transition-[width] duration-300 ease-out",
         collapsed ? "w-16" : "w-64",
       )}
     >
-      {/* ロゴ */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-sidebar-primary shrink-0">
-          <Music className="w-4 h-4 text-sidebar-primary-foreground" />
-        </div>
-        {!collapsed && (
-          <div className="overflow-hidden">
-            <h1 className="text-base font-semibold tracking-tight text-sidebar-foreground truncate">
-              Arsis Chamber Orchestra
-            </h1>
-            <p className="text-xs text-sidebar-foreground/60 truncate">管理プラットフォーム</p>
-          </div>
-        )}
-      </div>
-
       {/* ナビ */}
       <nav className="flex-1 px-2 py-4">
         <ul className="flex flex-col gap-1" role="navigation" aria-label="メインナビゲーション">

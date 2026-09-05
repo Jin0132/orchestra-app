@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { unauthorizedIfNeeded } from "@/lib/api-auth"
+import { unauthorizedIfNeeded, verifyPortalSession, isPortalAuthConfigured } from "@/lib/api-auth"
 import {
   DOCUMENTS_SHEET_NAME,
   DOCUMENT_HEADERS,
+  ensureDocumentHeaderColumns,
   findDocumentRowIndex,
   generateDocumentId,
   getDocHeaderIndex,
@@ -54,23 +55,29 @@ function normalizeInput(input: DocumentInput, current?: PortalDocument): PortalD
     owner: (input.owner ?? current?.owner ?? "").trim(),
     fileId: (input.fileId ?? current?.fileId ?? parsed?.fileId ?? "").trim(),
     updatedAt: nowYmdHm(),
+    memberVisible: input.memberVisible ?? current?.memberVisible ?? false,
   }
 }
 
-export async function GET(request: NextRequest) {
-  const denied = unauthorizedIfNeeded(request)
-  if (denied) return denied
+function isOpsSession(request: NextRequest): boolean {
+  if (!isPortalAuthConfigured()) return true
+  return verifyPortalSession(request)
+}
 
+export async function GET(request: NextRequest) {
   try {
-    const { rows, headerRow } = await loadDocumentsSheet()
+    const ops = isOpsSession(request)
+    const loaded = await loadDocumentsSheet()
+    const { rows, headerRow } = ops ? await ensureDocumentHeaderColumns(loaded) : loaded
     const documents = listPortalDocuments(rows, headerRow)
+    const visible = ops ? documents : documents.filter((d) => d.memberVisible && d.status !== "archived")
     const id = request.nextUrl.searchParams.get("id")?.trim()
     if (id) {
-      const one = documents.find((d) => d.id === id)
+      const one = visible.find((d) => d.id === id)
       if (!one) return NextResponse.json({ error: "Document not found" }, { status: 404 })
       return NextResponse.json(one, { headers: noStore })
     }
-    return NextResponse.json(documents, { headers: noStore })
+    return NextResponse.json(visible, { headers: noStore })
   } catch (e) {
     console.error("Documents GET error:", e)
     return NextResponse.json(
@@ -91,7 +98,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "title か url が必要です" }, { status: 400 })
     }
     const full = normalizeInput(input)
-    const { sheets, spreadsheetId, rows, headerRow } = await loadDocumentsSheet()
+    const loaded = await ensureDocumentHeaderColumns(await loadDocumentsSheet())
+    const { sheets, spreadsheetId, headerRow } = loaded
     const headers = headerRow.length ? headerRow : [...DOCUMENT_HEADERS]
     const values = documentRowToValues(headers, portalDocumentToRow(full))
     const lastCol = lastColumnLetter(headers, values)
@@ -121,7 +129,7 @@ export async function PATCH(request: NextRequest) {
     if (!input?.id) {
       return NextResponse.json({ error: "document.id is required" }, { status: 400 })
     }
-    const { sheets, spreadsheetId, rows, headerRow } = await loadDocumentsSheet()
+    const { sheets, spreadsheetId, rows, headerRow } = await ensureDocumentHeaderColumns(await loadDocumentsSheet())
     if (rows.length < 2) {
       return NextResponse.json({ error: "No data rows" }, { status: 404 })
     }

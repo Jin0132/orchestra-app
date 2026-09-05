@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Popover,
   PopoverContent,
@@ -20,13 +21,14 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Megaphone,
 } from "lucide-react"
 import { TasksSummary } from "@/components/tasks"
 import { DocumentsSummary } from "@/components/documents"
 import { format, differenceInDays, parseISO } from "date-fns"
 import { ja } from "date-fns/locale"
 import { toast } from "sonner"
-import { useAppData, type PracticeItem } from "@/hooks/use-app-data"
+import { useAppData, type PracticeItem, type MemberNotice } from "@/hooks/use-app-data"
 import { generateId } from "@/lib/task-store"
 import { useEffect } from "react"
 
@@ -254,6 +256,8 @@ export function Dashboard({
           </Card>
         </div>
       </div>
+
+      <NoticesCard />
     </div>
   )
 }
@@ -325,5 +329,125 @@ function PracticeForm({
         </form>
       )}
     </div>
+  )
+}
+
+function NoticesCard() {
+  const { data, loading, update } = useAppData()
+  const [composing, setComposing] = useState(false)
+  const [draft, setDraft] = useState("")
+
+  const publish = () => {
+    const body = draft.trim()
+    if (!body) {
+      toast.error("お知らせの内容を入力してください")
+      return
+    }
+    const next: MemberNotice = {
+      id: generateId(),
+      body,
+      createdAt: new Date().toISOString(),
+    }
+    update({ notices: [...data.notices, next] })
+    setDraft("")
+    setComposing(false)
+    toast.success("お知らせを出しました")
+  }
+
+  const remove = (notice: MemberNotice) => {
+    if (!window.confirm("このお知らせを削除しますか？")) return
+    update({ notices: data.notices.filter((n) => n.id !== notice.id) })
+    toast.success("お知らせを削除しました")
+  }
+
+  const newestFirst = [...data.notices].reverse()
+
+  return (
+    <Card className="border border-border bg-card gap-3 py-4">
+      <CardHeader className="px-4 pb-0">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-primary" />
+              お知らせ
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              ボタンを押して文を書くと、団員ホームに追加されます。間違えたらここから消せます。
+            </p>
+          </div>
+          {!composing && (
+            <Button type="button" size="sm" onClick={() => setComposing(true)} disabled={loading}>
+              お知らせする
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 space-y-3">
+        {composing && (
+          <div className="flex flex-col gap-2 rounded-lg border border-border bg-secondary/30 p-3">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={4}
+              autoFocus
+              placeholder="例: セッティングは来週月曜に確定します。"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setComposing(false)
+                  setDraft("")
+                }}
+              >
+                キャンセル
+              </Button>
+              <Button type="button" size="sm" onClick={publish} disabled={!draft.trim()}>
+                出す
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground text-center py-2">読み込み中…</p>
+        ) : newestFirst.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-2">まだお知らせはありません</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border">
+            {newestFirst.map((notice) => (
+              <li key={notice.id} className="flex items-start gap-3 py-2.5 first:pt-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{notice.body}</p>
+                  {notice.createdAt ? (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {(() => {
+                        try {
+                          return format(parseISO(notice.createdAt), "M月d日 HH:mm", { locale: ja })
+                        } catch {
+                          return notice.createdAt
+                        }
+                      })()}
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => remove(notice)}
+                  aria-label="お知らせを削除"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }

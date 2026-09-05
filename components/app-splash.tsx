@@ -27,7 +27,7 @@ function hideSplash(startedAt: number) {
 }
 
 /**
- * 初回HTMLのスプラッシュを、認証と初期データの準備が終わるまで維持する。
+ * 初回HTMLのスプラッシュを、初期データの準備が終わるまで維持する。
  * オーバーレイ中は画面操作できない。
  */
 export function AppSplash() {
@@ -55,15 +55,7 @@ export function AppSplash() {
 
         if (pathname?.startsWith("/mypage")) return
 
-        const authRes = await fetch("/api/auth", { cache: "no-store" })
-        const auth = (await authRes.json().catch(() => ({}))) as {
-          required?: boolean
-          authenticated?: boolean
-        }
-        const needsLogin = Boolean(auth.required) && !auth.authenticated
-        if (!needsLogin) {
-          await prefetchAppData()
-        }
+        await prefetchAppData()
       } catch {
         /* 失敗してもスプラッシュは閉じ、各画面のエラー表示に任せる */
       } finally {

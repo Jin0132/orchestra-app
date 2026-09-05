@@ -13,15 +13,21 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { getSheetsClient } from "@/lib/sheets"
-import { unauthorizedIfNeeded } from "@/lib/api-auth"
+import { unauthorizedIfNeeded, verifyPortalSession, isPortalAuthConfigured } from "@/lib/api-auth"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const SHEET_NAME = "AppData"
 
-const KEYS = ["concert", "practices", "tasks", "contracts", "taskConcerts"] as const
+const KEYS = ["concert", "practices", "tasks", "contracts", "taskConcerts", "notices", "memberMemo"] as const
+const PUBLIC_KEYS = ["concert", "practices", "notices", "memberMemo"] as const
 type DataKey = (typeof KEYS)[number]
+
+function isOpsSession(request: NextRequest): boolean {
+  if (!isPortalAuthConfigured()) return true
+  return verifyPortalSession(request)
+}
 
 async function ensureSheet(sheets: Awaited<ReturnType<typeof getSheetsClient>>["sheets"], spreadsheetId: string) {
   const meta = await sheets.spreadsheets.get({ spreadsheetId })
@@ -40,7 +46,7 @@ async function readData(sheets: Awaited<ReturnType<typeof getSheetsClient>>["she
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `'${SHEET_NAME}'!A1:B10`,
+      range: `'${SHEET_NAME}'!A1:B20`,
     })
     const rows = res.data.values ?? []
     const result: Record<string, unknown> = {}
@@ -58,14 +64,18 @@ async function readData(sheets: Awaited<ReturnType<typeof getSheetsClient>>["she
 }
 
 export async function GET(request: NextRequest) {
-  const authErr = unauthorizedIfNeeded(request)
-  if (authErr) return authErr
-
   try {
     const { sheets, spreadsheetId } = await getSheetsClient()
     await ensureSheet(sheets, spreadsheetId)
     const data = await readData(sheets, spreadsheetId)
-    return NextResponse.json(data)
+    if (isOpsSession(request)) {
+      return NextResponse.json(data)
+    }
+    const publicData: Record<string, unknown> = {}
+    for (const key of PUBLIC_KEYS) {
+      if (key in data) publicData[key] = data[key]
+    }
+    return NextResponse.json(publicData)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
@@ -85,8 +95,13 @@ export async function POST(request: NextRequest) {
   try {
     const { sheets, spreadsheetId } = await getSheetsClient()
     await ensureSheet(sheets, spreadsheetId)
+    const existing = await readData(sheets, spreadsheetId)
 
-    const values = KEYS.map((key) => [key, body[key] !== undefined ? JSON.stringify(body[key]) : ""])
+    const values = KEYS.map((key) => {
+      if (body[key] !== undefined) return [key, JSON.stringify(body[key])]
+      if (existing[key] !== undefined) return [key, JSON.stringify(existing[key])]
+      return [key, ""]
+    })
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,

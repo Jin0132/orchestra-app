@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,7 @@ type FormState = {
   summary: string
   owner: string
   fileId: string
+  memberVisible: boolean
 }
 
 const emptyForm = (): FormState => ({
@@ -82,6 +84,7 @@ const emptyForm = (): FormState => ({
   summary: "",
   owner: "",
   fileId: "",
+  memberVisible: false,
 })
 
 function docToForm(doc: PortalDocument): FormState {
@@ -96,6 +99,7 @@ function docToForm(doc: PortalDocument): FormState {
     summary: doc.summary,
     owner: doc.owner,
     fileId: doc.fileId,
+    memberVisible: doc.memberVisible,
   }
 }
 
@@ -108,7 +112,7 @@ function matchesQuery(doc: PortalDocument, q: string) {
 }
 
 export function Documents() {
-  const { documents, loading, error, reload } = useDocuments()
+  const { documents, loading, error, reload, setDocuments } = useDocuments()
   const { data: appData } = useAppData()
   const concerts = appData.taskConcerts
 
@@ -209,6 +213,7 @@ export function Documents() {
         summary: form.summary.trim(),
         owner: form.owner.trim(),
         fileId: form.fileId.trim(),
+        memberVisible: form.memberVisible,
       }
       const res = await fetch("/api/documents", {
         method: editing ? "PATCH" : "POST",
@@ -330,6 +335,24 @@ export function Documents() {
   const concertName = (id: string | null) =>
     id ? concerts.find((c) => c.id === id)?.name ?? null : null
 
+  const toggleMemberVisible = async (doc: PortalDocument) => {
+    const next = { ...doc, memberVisible: !doc.memberVisible }
+    setDocuments((prev) => prev.map((d) => (d.id === doc.id ? next : d)))
+    try {
+      const res = await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: { id: doc.id, memberVisible: next.memberVisible } }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "更新に失敗しました")
+      toast.success(next.memberVisible ? "団員ホームに表示します" : "団員ホームから外しました")
+    } catch (e) {
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? doc : d)))
+      toast.error(e instanceof Error ? e.message : "更新に失敗しました")
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -437,7 +460,7 @@ export function Documents() {
             return (
               <Card key={doc.id} className="border border-border bg-card">
                 <CardContent className="py-3 px-4">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
                     <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         {doc.url ? (
@@ -476,7 +499,15 @@ export function Documents() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                        <Switch
+                          checked={doc.memberVisible}
+                          onCheckedChange={() => void toggleMemberVisible(doc)}
+                          aria-label="団員に見せる"
+                        />
+                        団員に見せる
+                      </label>
                       <button type="button" onClick={() => openEdit(doc)} className="text-muted-foreground hover:text-foreground p-1" aria-label="編集">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -586,6 +617,13 @@ export function Documents() {
                 <Input id="doc-owner" value={form.owner} onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))} placeholder="事務" />
               </div>
             </div>
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+              <span className="text-sm">団員ホームに見せる</span>
+              <Switch
+                checked={form.memberVisible}
+                onCheckedChange={(checked) => setForm((f) => ({ ...f, memberVisible: checked }))}
+              />
+            </label>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>キャンセル</Button>

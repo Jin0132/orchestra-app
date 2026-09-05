@@ -4,7 +4,9 @@ import {
   isDocumentCategory,
   isDocumentKind,
   isDocumentStatus,
+  parseMemberVisible,
   parseTags,
+  toMemberVisibleCell,
   type DocumentRow,
   type PortalDocument,
 } from "@/lib/document-catalog"
@@ -22,7 +24,9 @@ export {
   isDocumentStatus,
   nowYmdHm,
   parseGoogleResource,
+  parseMemberVisible,
   parseTags,
+  toMemberVisibleCell,
   type DocumentCategory,
   type DocumentKind,
   type DocumentRow,
@@ -78,6 +82,7 @@ export function rowToPortalDocument(row: DocumentRow): PortalDocument | null {
     owner: row.owner,
     fileId: row.fileId,
     updatedAt: row.updatedAt,
+    memberVisible: parseMemberVisible(row.memberVisible),
   }
 }
 
@@ -95,6 +100,7 @@ export function portalDocumentToRow(doc: PortalDocument): DocumentRow {
     owner: doc.owner,
     fileId: doc.fileId,
     updatedAt: doc.updatedAt,
+    memberVisible: toMemberVisibleCell(doc.memberVisible),
   }
 }
 
@@ -135,6 +141,23 @@ export async function loadDocumentsSheet(maxRows = 2000) {
   }
   const headerRow = (rows[0] ?? []).map((c) => String(c ?? ""))
   return { sheets, spreadsheetId, rows, headerRow }
+}
+
+/** 足りない列（memberVisible など）をヘッダー末尾に足す */
+export async function ensureDocumentHeaderColumns(loaded: Awaited<ReturnType<typeof loadDocumentsSheet>>) {
+  const existing = new Set(loaded.headerRow.map((h) => normalizeHeaderName(h)))
+  const missing = DOCUMENT_HEADERS.filter((h) => !existing.has(normalizeHeaderName(h)))
+  if (missing.length === 0) return loaded
+
+  const headerRow = [...loaded.headerRow, ...missing]
+  await loaded.sheets.spreadsheets.values.update({
+    spreadsheetId: loaded.spreadsheetId,
+    range: `'${DOCUMENTS_SHEET_NAME}'!A1:${toA1Column(headerRow.length)}1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [headerRow] },
+  })
+  const rows = loaded.rows.length > 0 ? [headerRow, ...loaded.rows.slice(1)] : [headerRow]
+  return { ...loaded, headerRow, rows }
 }
 
 export function listPortalDocuments(rows: unknown[][], headerRow: string[]): PortalDocument[] {

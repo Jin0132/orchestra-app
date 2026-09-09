@@ -52,7 +52,7 @@ export default function OrchestraApp() {
             className={
               mode === "ops"
                 ? "w-full px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 pb-32 md:pb-8"
-                : "w-full px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8"
+                : "w-full min-h-full px-4 py-10 sm:px-6 lg:px-8"
             }
           >
             {mode === "member" ? (

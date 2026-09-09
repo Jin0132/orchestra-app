@@ -178,3 +178,50 @@ html:has(#app-splash:not([hidden]):not(.app-splash-out)) body {
     transition: none;
   }
 }
+
+/* 団員ホーム：入場と余韻 */
+@keyframes member-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 0 transparent;
+    opacity: 0.88;
+  }
+  50% {
+    text-shadow: 0 0 22px oklch(0.42 0.12 260 / 0.35);
+    opacity: 1;
+  }
+}
+
+@keyframes member-title-in {
+  from {
+    opacity: 0;
+    transform: translateX(-1.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.member-home-title {
+  opacity: 0;
+  transform: translateX(-1.75rem);
+}
+
+.member-home-title.is-in {
+  animation: member-title-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.member-home-days {
+  animation: member-glow 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-home-title,
+  .member-home-title.is-in,
+  .member-home-days {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

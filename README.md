@@ -71,10 +71,11 @@ orchestra-app-1/
 |---|---|---|
 | `GET/POST /api/auth` | 入室状態確認・パスワードログイン | `DELETE` でログアウト |
 | `GET/POST/PATCH/DELETE /api/sheets/members` | 運営側の団員 CRUD | `PORTAL_ACCESS_SECRET` 設定時は要ログイン |
-| `GET/POST/PATCH/DELETE /api/documents` | 書類台帳 CRUD | 同上。原本は動かさない |
+| `GET/POST/PATCH/DELETE /api/documents` | 書類台帳 CRUD。一覧は演奏会回数も返す | 原本は動かさない |
 | `POST /api/documents/inspect` | URL から題名・種類・要約案 | Drive / Docs API |
-| `GET /api/documents/drive` | 共有フォルダの未登録ファイル | Drive API |
-| `POST /api/documents/create` | 共有フォルダに Docs を新規作成 | Docs / Drive API |
+| `GET /api/documents/view` | フォルダ一覧またはファイルの表示種別 | Drive API |
+| `GET /api/documents/media` | PDF / 画像のバイト列 | Docs/Sheets は PDF 書き出し |
+| `POST /api/concerts` | 演奏会の次の回をシートへ追加 | `Concerts` タブ |
 | `GET/PATCH /api/member` | マイページ用 | ID 指定。ポータルパスワードは不要 |
 | `POST /api/upload/photo` | 運営側の写真 | 要ログイン（秘密設定時）・画像のみ・5MB 以下 |
 | `POST /api/upload` | マイページ写真 | 画像のみ・5MB 以下 |

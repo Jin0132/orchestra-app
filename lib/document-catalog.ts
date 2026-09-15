@@ -135,6 +135,87 @@ export function parseTags(raw: string): string[] {
     .filter(Boolean)
 }
 
+export type ConcertEdition = {
+  id: string
+  name: string
+}
+
+const GENERAL_CONCERT_VALUES = new Set(["", "一般", "none", "n/a", "na", "general", "all"])
+
+function toHalfWidthDigits(s: string): string {
+  return s.replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+}
+
+/** `1` / `第1回` / `第1回演奏会` → 1。一般・空は null */
+export function parseConcertNumber(raw: string | null | undefined): number | null {
+  if (raw == null) return null
+  const s = toHalfWidthDigits(String(raw).trim())
+  if (!s || GENERAL_CONCERT_VALUES.has(s.toLowerCase()) || s === "一般") return null
+  const m = s.match(/第\s*(\d+)\s*回/) || s.match(/^(\d+)\s*回$/) || s.match(/^(\d+)$/)
+  if (!m) return null
+  const n = Number(m[1])
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+
+export function concertEditionId(raw: string | null | undefined): string | null {
+  const n = parseConcertNumber(raw)
+  return n != null ? String(n) : null
+}
+
+export function concertEditionLabel(id: string): string {
+  const n = parseConcertNumber(id)
+  return n != null ? `第${n}回` : id
+}
+
+/** 保存用。一般は null、回数は `"1"`、解釈できない値（旧 UUID など）はそのまま */
+export function normalizeConcertId(raw: string | null | undefined): string | null {
+  if (raw == null) return null
+  const s = String(raw).trim()
+  if (!s || GENERAL_CONCERT_VALUES.has(s.toLowerCase()) || s === "一般") return null
+  return concertEditionId(s) ?? s
+}
+
+export function isGeneralConcert(id: string | null | undefined): boolean {
+  return normalizeConcertId(id) == null
+}
+
+export function sameConcertEdition(a: string | null | undefined, b: string | null | undefined): boolean {
+  const na = normalizeConcertId(a)
+  const nb = normalizeConcertId(b)
+  if (!na && !nb) return true
+  if (!na || !nb) return false
+  const ia = concertEditionId(na)
+  const ib = concertEditionId(nb)
+  if (ia && ib) return ia === ib
+  return na === nb
+}
+
+export function mergeConcertEditions(editions: ConcertEdition[]): ConcertEdition[] {
+  const map = new Map<string, string>()
+  for (const e of editions) {
+    const key = concertEditionId(e.id) ?? concertEditionId(e.name) ?? normalizeConcertId(e.id)
+    if (!key) continue
+    const rawName = (e.name ?? "").trim()
+    const bareNumber = Boolean(concertEditionId(rawName) && /^(第\s*\d+\s*回|\d+)$/.test(toHalfWidthDigits(rawName)))
+    const name = rawName && rawName !== e.id && rawName !== key && !bareNumber
+      ? rawName
+      : concertEditionLabel(key)
+    if (!map.has(key)) map.set(key, name)
+  }
+  const numeric = [...map.keys()].filter((k) => parseConcertNumber(k) != null).sort((a, b) => Number(a) - Number(b))
+  const other = [...map.keys()].filter((k) => parseConcertNumber(k) == null).sort()
+  return [...numeric, ...other].map((id) => ({ id, name: map.get(id)! }))
+}
+
+export function harvestConcertEditions(documents: { concertId?: string | null }[]): ConcertEdition[] {
+  return mergeConcertEditions(
+    documents.flatMap((d) => {
+      const id = concertEditionId(d.concertId)
+      return id ? [{ id, name: concertEditionLabel(id) }] : []
+    }),
+  )
+}
+
 export type ParsedGoogleResource = {
   kind: DocumentKind
   fileId: string

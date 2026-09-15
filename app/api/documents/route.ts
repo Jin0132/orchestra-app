@@ -22,6 +22,8 @@ import {
   rowToPortalDocument,
   type PortalDocument,
 } from "@/lib/documents"
+import { collectConcertEditions, listConcertEditionsFromSheet } from "@/lib/concerts"
+import { normalizeConcertId } from "@/lib/document-catalog"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -49,7 +51,10 @@ function normalizeInput(input: DocumentInput, current?: PortalDocument): PortalD
     url,
     category: input.category && isDocumentCategory(input.category) ? input.category : current?.category ?? "その他",
     tags,
-    concertId: input.concertId === undefined ? current?.concertId ?? null : input.concertId || null,
+    concertId:
+      input.concertId === undefined
+        ? current?.concertId ?? null
+        : normalizeConcertId(input.concertId),
     status: input.status && isDocumentStatus(input.status) ? input.status : current?.status ?? "active",
     summary: (input.summary ?? current?.summary ?? "").trim(),
     owner: (input.owner ?? current?.owner ?? "").trim(),
@@ -70,14 +75,15 @@ export async function GET(request: NextRequest) {
     const loaded = await loadDocumentsSheet()
     const { rows, headerRow } = ops ? await ensureDocumentHeaderColumns(loaded) : loaded
     const documents = listPortalDocuments(rows, headerRow)
-    const visible = ops ? documents : documents.filter((d) => d.memberVisible && d.status !== "archived")
+    const visible = ops ? documents : documents.filter((d) => d.memberVisible && d.status !== "archived" && d.kind !== "folder")
     const id = request.nextUrl.searchParams.get("id")?.trim()
     if (id) {
       const one = visible.find((d) => d.id === id)
       if (!one) return NextResponse.json({ error: "Document not found" }, { status: 404 })
       return NextResponse.json(one, { headers: noStore })
     }
-    return NextResponse.json(visible, { headers: noStore })
+    const concerts = collectConcertEditions(documents, await listConcertEditionsFromSheet())
+    return NextResponse.json({ documents: visible, concerts }, { headers: noStore })
   } catch (e) {
     console.error("Documents GET error:", e)
     return NextResponse.json(

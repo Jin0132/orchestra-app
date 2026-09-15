@@ -6,7 +6,7 @@
 - 正本はこのドキュメントのタブ『v2本編』（リポジトリの写しが本ファイル）
 - 旧タブはアーカイブ。本編へ移した静的ルールは旧タブから外し、長い手順・回別は Drive／シートへ移す
 
-最終更新: 2026-09-05
+最終更新: 2026-09-13
 
 ---
 
@@ -29,9 +29,10 @@
 | 団員・公演運用 | シート『Arsis Chamber Orchestra』（Member page / AppData / Documents など） |
 | 希望調査・問い合わせ | 同シートの既存タブ（全回共通で継続） |
 | 緊急連絡 | 同シートの「緊急連絡先」タブ |
-| 各回の書類 | Drive 内の回別フォルダ |
-| 会計・送金 | 『各回会計』（決定）／『ArsisCO 会計』（推定）。ポータル未接続 |
-| 長い作業手順・ひな形 | Drive の各テンプレ（フライヤー／飲食店／打楽器／CF／SNS） |
+| 各回の書類 | Drive の回別フォルダ（第1回／第2回） |
+| 会計・送金 | 『各回会計』（決定）／『ArsisCO 会計』（推定）。親フォルダの外。ポータル未登録 |
+| 長い作業手順・ひな形 | Drive『運営手順』と『CF』 |
+| ギャラ案内の文面 | Drive『書類（一般）』 |
 | どのアプリが何を担当するか | 下記「システムの役割」。詳細は Portal リポジトリの BRIEFING |
 | 開発・プログラムの改善メモ | Lab の **課題ボード**（マスタブックの To do list ではない） |
 
@@ -152,7 +153,7 @@
 
 ### 3-2. 領収書の提出（運営メンバー）
 
-1. Drive 共有フォルダ『Arsis_領収書原本』に写真／スキャンをアップロードする。
+1. Drive 共有フォルダ『領収書原本』（第1回フォルダ内）に写真／スキャンをアップロードする。
 2. ファイル名は「支払日4桁_金額_内容」（例：`0510_6700_シビックホール`）。
 3. 支払日はアップロード日ではなく、領収書記載日とする。
 4. 紙の原本は、デジタル保存後も公演終了まで各自で保管する。
@@ -242,43 +243,57 @@
 
 ## 付録. 関連ドキュメント・シート
 
-このガイドから、関連するドキュメントとシートを開く。新しい書類は増やさず、既存の置き場を正とする。口座番号はどの書類にも書かない。
+このガイドから、関連するドキュメントとシートを開く。新しい書類は増やさず、既存の置き場を正とする。口座番号はどの書類にも書かない。会計シートは親フォルダの外にあり、Portal の書類台帳には載せない。
 
 ### シート
 
 | 内容 | 置き場 |
 |---|---|
 | 団員・公演・書類台帳 | [マスタブック](https://docs.google.com/spreadsheets/d/1wKZhLdVNquSvkCV8l3UBQdlqSULqrLqYRusluGbhCDU/edit) |
-| 会計の決定（ギャラ計算／税・注意／チケット料金／各回） | [各回会計](https://docs.google.com/spreadsheets/d/1ElnIbKi_URjfB796fzqC0Hq2xNJ0dxRwDA_VkYAVbHE/edit) |
-| 会計の見込み | [ArsisCO 会計](https://docs.google.com/spreadsheets/d/1Yt27_hyOhvH_0o3fTKITzdfu_YwDOs5o9bp5KLCPRAY/edit) |
 | 開発課題（日常タスクではない） | [課題ボード](https://docs.google.com/spreadsheets/d/1tKo8IElmIwIU0sNcC5vAEjqcNklKjZh_oGCa9aO6QlU/edit) |
+| 会計の決定（ギャラ計算／税・注意／チケット料金／各回） | [各回会計](https://docs.google.com/spreadsheets/d/1ElnIbKi_URjfB796fzqC0Hq2xNJ0dxRwDA_VkYAVbHE/edit)（親の外） |
+| 会計の見込み | [ArsisCO 会計](https://docs.google.com/spreadsheets/d/1Yt27_hyOhvH_0o3fTKITzdfu_YwDOs5o9bp5KLCPRAY/edit)（親の外） |
+| Instagram の数字 | [Instagram insight](https://docs.google.com/spreadsheets/d/1ytdBlX1BLAuRKcdnKbgdekLDUJZyTdGg5u7Tq5rqA-Q/edit) |
 
-### ドキュメント（Drive『運営手順』）
+### 手順ドキュメント
 
 | 内容 | ドキュメント |
 |---|---|
 | フライヤー・挟み込み | [フライヤー・挟み込み手順](https://docs.google.com/document/d/1luzrll2r1Bdzx91EU3Z1poaFs-tlv3KSZtCsre8hzVI/edit) |
 | 飲食店連携 | [飲食店連携手順](https://docs.google.com/document/d/1WDNgJN6pdd5pXaqxemCr38vhYjPchW46QI-BHXaCZKM/edit) |
 | 打楽器手配 | [打楽器手配手順](https://docs.google.com/document/d/1Wc1Pz762287oKLeshNqp2vmxwurNY1cF_cWzgnMZAAU/edit) |
-| CF・協賛 | [CF・協賛テンプレ](https://docs.google.com/document/d/11CBqOK0VmE8dPH3HRYS0xGWYetW1z0-yPEybFFZpWlc/edit) |
 | SNS 運用 | [SNS運用手順](https://docs.google.com/document/d/1ZWSawHrAl7AIRiRz7kpvdaVDml36eLcjmtjabFkAowI/edit) |
+| CF・協賛（置き場は CF フォルダ） | [CF・協賛テンプレ](https://docs.google.com/document/d/11CBqOK0VmE8dPH3HRYS0xGWYetW1z0-yPEybFFZpWlc/edit) |
 
-### 通覧・各回
+### 原本・通覧（書類一般）
 
 | 内容 | 置き場 |
 |---|---|
 | 演奏会の曲目（通覧） | [演奏会曲目（通覧）](https://docs.google.com/document/d/1MJijV_eeV17SR8JUU_xXRwJJ_7G_nu4y4a0H6iGokh4/edit) |
+| ギャラ案内（確定） | [ギャラ案内（確定）](https://drive.google.com/file/d/1PF7Kda3mPDtfXUubotQ30A3wHAdaLpDv/view) |
+| 企画書の原本 | [演奏会企画書（原本）](https://docs.google.com/document/d/193xFi98Q1uVfQqdt2Y-p1CWsIgs0SinwehPmQBTuF-0/edit) |
+| 広報リンク | [Links for promotion](https://docs.google.com/document/d/11grnzto9QufopzkA12zSQYl2K-NrHeaQ6FAnVkY3WPo/edit) |
+| アイデアメモ | [アイデアページ](https://docs.google.com/document/d/1EXkxKZRpkwEgD8OVDFvpzZ4_jP5RRDa9riF8qXWi0GQ/edit) |
+
+### 各回
+
+| 内容 | 置き場 |
+|---|---|
 | 第1回の確定日程 | [第1回演奏会スケジュール](https://docs.google.com/document/d/1VH-vYuTogcAK4kfRqo4ZbAYB79NJOwvQcbyFaRBMsMs/edit) |
-| 第1回のギャラ案内 | [ギャラ案内（第1回・確定）](https://drive.google.com/file/d/1PF7Kda3mPDtfXUubotQ30A3wHAdaLpDv/view) |
+| 第2回の企画案 | [第2回企画概要書](https://docs.google.com/document/d/1If_oMpRY0ETmI0BNfblBnWy7XKOKfBZb-ANeH979POE/edit) |
 
 ### フォルダ
 
 | 内容 | 置き場 |
 |---|---|
 | Drive（団の親） | [Arsis Chamber Orchestra](https://drive.google.com/drive/folders/1QVEqhzi-fxQ1AJeCTKyAqUL90RWm9bMG) |
-| 共通の書類 | [書類（一般）](https://drive.google.com/drive/folders/1OJpbxt2eEizyKuwDmP7ikQZMVk6JLOQV) |
+| 共通の書類・原本 | [書類（一般）](https://drive.google.com/drive/folders/1OJpbxt2eEizyKuwDmP7ikQZMVk6JLOQV) |
 | 運営手順 | [運営手順](https://drive.google.com/drive/folders/1Tw5ELUhYUi5Wm7LDwul2_GJvSczbjewr) |
-| 第1回の成果物 | [第1回演奏会](https://drive.google.com/drive/folders/1WWYDNtHcCjCTOgSWEPrQ2Y6KPY6qbSeb) |
-| 領収書 | [領収書原本](https://drive.google.com/drive/folders/1-9hJbinDZyqonw1usrJm5DCHZeZ6itmG) |
+| CF | [CF](https://drive.google.com/drive/folders/1BugCqPZQUT7N3MznwsFH19VLKV5yVhOi) |
+| 第1回 | [第1回演奏会](https://drive.google.com/drive/folders/1WWYDNtHcCjCTOgSWEPrQ2Y6KPY6qbSeb) |
+| 第2回 | [第2回演奏会](https://drive.google.com/drive/folders/1UWanvgaHnCeiXHe0x5uKfRhayQTdQF0p) |
+| ホルン四重奏 | [ホルン四重奏9/6](https://drive.google.com/drive/folders/1m7F3Fq4lojZgyHsAVREapesQD_Azpk2y) |
+| 領収書（第1回の中） | [領収書原本](https://drive.google.com/drive/folders/1-9hJbinDZyqonw1usrJm5DCHZeZ6itmG) |
+| 古い開発文書 | [開発アーカイブ](https://drive.google.com/drive/folders/10Yrgy_wNh42yD7IlQww4gH1U5WZaOQft) |
 
 毎回同じ骨格のスケジュールは本編§2。本 v2 では「毎回同じ骨格」だけを正本とします。

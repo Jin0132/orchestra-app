@@ -80,7 +80,7 @@ export function MemberHome() {
       })()
     : null
 
-  const sharedDocs = documents.filter((d) => d.memberVisible && d.status !== "archived")
+  const sharedDocs = documents.filter((d) => d.memberVisible && d.status !== "archived" && d.kind !== "folder")
   const notices = [...data.notices].reverse()
 
   return (

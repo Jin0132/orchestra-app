@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -30,9 +30,9 @@ import {
   Plus,
   Search,
   Trash2,
-  ExternalLink,
-  FilePlus,
-  RefreshCw,
+  ChevronLeft,
+  FileText,
+  Filter,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAppData } from "@/hooks/use-app-data"
@@ -43,20 +43,147 @@ import {
   DOCUMENT_STATUSES,
   KIND_LABEL,
   STATUS_LABEL,
+  concertEditionLabel,
+  isGeneralConcert,
+  parseConcertNumber,
   parseTags,
+  parseGoogleResource,
+  sameConcertEdition,
+  type ConcertEdition,
   type DocumentCategory,
   type DocumentKind,
   type DocumentStatus,
   type PortalDocument,
 } from "@/lib/document-catalog"
 
-type DriveListedFile = {
+type ViewerEntry = { id: string; name: string }
+
+type ViewPayload = {
   id: string
   name: string
   kind: DocumentKind
-  url: string
-  modifiedTime: string
-  registered: boolean
+  view: "folder" | "pdf" | "image" | "unsupported"
+  mimeType?: string
+  files?: { id: string; name: string; kind: DocumentKind; url?: string }[]
+  error?: string
+}
+
+function PdfPreview({ url }: { url: string }) {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const host = hostRef.current
+    if (!host) return
+    host.replaceChildren()
+    setLoading(true)
+    setError(null)
+    void (async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist")
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+        const pdf = await pdfjs.getDocument({ url, withCredentials: false }).promise
+        for (let i = 1; i <= pdf.numPages; i++) {
+          if (cancelled) return
+          const page = await pdf.getPage(i)
+          const unscaled = page.getViewport({ scale: 1 })
+          const cssWidth = Math.max(280, (host.parentElement?.clientWidth ?? host.clientWidth ?? 600) - 8)
+          const dpr = Math.min(window.devicePixelRatio || 1, 2)
+          const viewport = page.getViewport({ scale: (cssWidth / unscaled.width) * dpr })
+          const canvas = document.createElement("canvas")
+          canvas.width = viewport.width
+          canvas.height = viewport.height
+          canvas.className = "w-full h-auto mb-3 bg-white shadow-sm"
+          canvas.style.width = "100%"
+          const ctx = canvas.getContext("2d")
+          if (!ctx) throw new Error("PDF を描画できませんでした")
+          host.appendChild(canvas)
+          await page.render({ canvas, canvasContext: ctx, viewport }).promise
+        }
+        if (!cancelled) setLoading(false)
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "PDF を表示できませんでした")
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [url])
+
+  return (
+    <div className="h-[70vh] overflow-auto bg-neutral-200 p-3">
+      {loading && <p className="text-sm text-muted-foreground text-center py-8">読み込み中…</p>}
+      {error && (
+        <p className="text-sm text-destructive text-center py-8">
+          {error}
+          <a href={url} download className="text-primary underline ml-2">ダウンロード</a>
+        </p>
+      )}
+      <div ref={hostRef} />
+    </div>
+  )
+}
+
+function DocumentPreview({ fileId, view }: { fileId: string; view: "pdf" | "image" }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null)
+  const [resolved, setResolved] = useState<"pdf" | "image">(view)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    let createdUrl: string | null = null
+    setLoading(true)
+    setError(null)
+    setObjectUrl(null)
+    setResolved(view)
+    void (async () => {
+      try {
+        const res = await fetch(`/api/documents/media?fileId=${encodeURIComponent(fileId)}`, { cache: "no-store" })
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string }
+          throw new Error(data.error || "開けませんでした")
+        }
+        const mime = (res.headers.get("content-type") || "").toLowerCase()
+        const nextView = mime.includes("pdf") ? "pdf" : mime.startsWith("image/") ? "image" : view
+        const blob = await res.blob()
+        createdUrl = URL.createObjectURL(blob)
+        if (alive) {
+          setResolved(nextView)
+          setObjectUrl(createdUrl)
+        } else {
+          URL.revokeObjectURL(createdUrl)
+        }
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : "開けませんでした")
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => {
+      alive = false
+      if (createdUrl) URL.revokeObjectURL(createdUrl)
+    }
+  }, [fileId, view])
+
+  if (loading) return <p className="text-sm text-muted-foreground text-center py-16">読み込み中…</p>
+  if (error) return <p className="text-sm text-destructive text-center px-4 py-16">{error}</p>
+  if (resolved === "image" && objectUrl) {
+    return (
+      <div className="h-[70vh] overflow-auto flex items-center justify-center p-4 bg-white">
+        <img src={objectUrl} alt="" className="max-w-full max-h-full object-contain" />
+      </div>
+    )
+  }
+  if (resolved === "pdf" && objectUrl) {
+    return <PdfPreview url={objectUrl} />
+  }
+  return <p className="text-sm text-muted-foreground text-center py-16">表示できませんでした</p>
 }
 
 type FormState = {
@@ -103,6 +230,78 @@ function docToForm(doc: PortalDocument): FormState {
   }
 }
 
+function DocsTable({
+  docs,
+  memberColumn,
+  onOpen,
+  onDetail,
+  onToggleMember,
+}: {
+  docs: PortalDocument[]
+  memberColumn?: boolean
+  onOpen: (doc: PortalDocument) => void
+  onDetail: (doc: PortalDocument) => void
+  onToggleMember?: (doc: PortalDocument, visible: boolean) => void
+}) {
+  return (
+    <table className="w-full">
+      <thead>
+        <tr className="border-y border-border bg-secondary/40">
+          <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {memberColumn ? "書類" : "フォルダ"}
+          </th>
+          <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            形式
+          </th>
+          {memberColumn && (
+            <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+              団員
+            </th>
+          )}
+          <th className="px-3 py-3 w-12" />
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {docs.map((doc) => (
+          <tr key={doc.id} className="hover:bg-secondary/30 transition-colors">
+            <td className="px-4 py-3">
+              <button
+                type="button"
+                onClick={() => onOpen(doc)}
+                className="text-sm font-medium text-foreground text-left hover:underline truncate max-w-full"
+              >
+                {doc.title}
+              </button>
+            </td>
+            <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
+              {KIND_LABEL[doc.kind]}
+            </td>
+            {memberColumn && onToggleMember && (
+              <td className="px-3 py-3">
+                <Switch
+                  checked={doc.memberVisible}
+                  onCheckedChange={(checked) => onToggleMember(doc, checked)}
+                  aria-label={`${doc.title}を団員ホームに見せる`}
+                />
+              </td>
+            )}
+            <td className="px-3 py-3 text-right">
+              <button
+                type="button"
+                onClick={() => onDetail(doc)}
+                className="text-muted-foreground hover:text-foreground p-1"
+                aria-label={`${doc.title}を編集`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 function matchesQuery(doc: PortalDocument, q: string) {
   if (!q) return true
   const hay = [doc.title, doc.summary, doc.owner, doc.tags.join(" "), KIND_LABEL[doc.kind], doc.category]
@@ -112,32 +311,27 @@ function matchesQuery(doc: PortalDocument, q: string) {
 }
 
 export function Documents() {
-  const { documents, loading, error, reload, setDocuments } = useDocuments()
-  const { data: appData } = useAppData()
-  const concerts = appData.taskConcerts
+  const { documents, concerts, loading, error, reload, setDocuments } = useDocuments()
 
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState<string>("all")
   const [kind, setKind] = useState<string>("all")
-  const [status, setStatus] = useState<string>("active")
+  const [status, setStatus] = useState<string>("all")
   const [concertFilter, setConcertFilter] = useState<string>("all")
+  const [filterOpen, setFilterOpen] = useState(false)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<PortalDocument | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [inspecting, setInspecting] = useState(false)
   const [saving, setSaving] = useState(false)
-
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({ title: "", category: "その他" as DocumentCategory, summary: "", owner: "", tags: "", concertId: "" })
-  const [creating, setCreating] = useState(false)
-
-  const [driveOpen, setDriveOpen] = useState(false)
-  const [driveFiles, setDriveFiles] = useState<DriveListedFile[]>([])
-  const [driveFolderUrl, setDriveFolderUrl] = useState("")
-  const [driveLoading, setDriveLoading] = useState(false)
-  const [driveError, setDriveError] = useState<string | null>(null)
+  const [addingConcert, setAddingConcert] = useState(false)
   const [importingId, setImportingId] = useState<string | null>(null)
+
+  const [viewerTrail, setViewerTrail] = useState<ViewerEntry[]>([])
+  const [viewData, setViewData] = useState<ViewPayload | null>(null)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewError, setViewError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     return documents.filter((d) => {
@@ -145,17 +339,103 @@ export function Documents() {
       if (category !== "all" && d.category !== category) return false
       if (kind !== "all" && d.kind !== kind) return false
       if (status !== "all" && d.status !== status) return false
-      if (concertFilter === "none" && d.concertId) return false
-      if (concertFilter !== "all" && concertFilter !== "none" && d.concertId !== concertFilter) return false
+      if (concertFilter === "none" && !isGeneralConcert(d.concertId)) return false
+      if (concertFilter !== "all" && concertFilter !== "none" && !sameConcertEdition(d.concertId, concertFilter)) return false
       return true
     })
   }, [documents, query, category, kind, status, concertFilter])
+
+  const fileDocs = useMemo(() => filtered.filter((d) => d.kind !== "folder"), [filtered])
+  const folderDocs = useMemo(() => filtered.filter((d) => d.kind === "folder"), [filtered])
+  const byFileId = useMemo(() => {
+    const map = new Map<string, PortalDocument>()
+    for (const doc of documents) {
+      const id = doc.fileId.trim() || parseGoogleResource(doc.url)?.fileId || ""
+      if (id) map.set(id, doc)
+    }
+    return map
+  }, [documents])
+
+  const concertOptions = useMemo(() => {
+    const list: ConcertEdition[] = [...concerts]
+    const extra = form.concertId.trim()
+    if (extra && !isGeneralConcert(extra) && !list.some((c) => sameConcertEdition(c.id, extra))) {
+      list.push({ id: extra, name: concertEditionLabel(extra) })
+    }
+    return list
+  }, [concerts, form.concertId])
+
+  const nextConcertNumber = useMemo(() => {
+    const nums = concerts.map((c) => parseConcertNumber(c.id) ?? 0)
+    return Math.max(0, ...nums) + 1
+  }, [concerts])
+
+  const filtersActive =
+    Boolean(query.trim()) ||
+    category !== "all" ||
+    kind !== "all" ||
+    status !== "all" ||
+    concertFilter !== "all"
+
+  const clearFilters = () => {
+    setQuery("")
+    setCategory("all")
+    setKind("all")
+    setStatus("all")
+    setConcertFilter("all")
+  }
 
   const openNew = () => {
     setEditing(null)
     setForm(emptyForm())
     setDialogOpen(true)
   }
+
+  const fileIdOf = (doc: PortalDocument) =>
+    doc.fileId.trim() || parseGoogleResource(doc.url)?.fileId || ""
+
+  const openViewer = (doc: PortalDocument) => {
+    const fileId = fileIdOf(doc)
+    if (!fileId) {
+      toast.error("この書類は Drive のファイルとつながっていないため、Portal 内では開けません")
+      return
+    }
+    setViewerTrail([{ id: fileId, name: doc.title }])
+  }
+
+  const currentView = viewerTrail[viewerTrail.length - 1] ?? null
+
+  useEffect(() => {
+    if (!currentView) {
+      setViewData(null)
+      setViewError(null)
+      setViewLoading(false)
+      return
+    }
+    let cancelled = false
+    setViewLoading(true)
+    setViewError(null)
+    void (async () => {
+      try {
+        const res = await fetch(`/api/documents/view?fileId=${encodeURIComponent(currentView.id)}`, {
+          cache: "no-store",
+        })
+        const data = (await res.json()) as ViewPayload & { error?: string }
+        if (!res.ok) throw new Error(data.error || "開けませんでした")
+        if (!cancelled) setViewData(data)
+      } catch (e) {
+        if (!cancelled) {
+          setViewData(null)
+          setViewError(e instanceof Error ? e.message : "開けませんでした")
+        }
+      } finally {
+        if (!cancelled) setViewLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentView])
 
   const openEdit = (doc: PortalDocument) => {
     setEditing(doc)
@@ -194,6 +474,26 @@ export function Documents() {
     }
   }
 
+  const addNextConcert = async () => {
+    setAddingConcert(true)
+    try {
+      const res = await fetch("/api/concerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: String(nextConcertNumber) }),
+      })
+      const data = (await res.json()) as ConcertEdition & { error?: string }
+      if (!res.ok) throw new Error(data.error || "追加に失敗しました")
+      toast.success(`${data.name} を追加しました`)
+      setForm((f) => ({ ...f, concertId: data.id }))
+      await reload()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "追加に失敗しました")
+    } finally {
+      setAddingConcert(false)
+    }
+  }
+
   const saveDocument = async () => {
     if (!form.title.trim() && !form.url.trim()) {
       toast.error("タイトルか URL を入力してください")
@@ -208,7 +508,7 @@ export function Documents() {
         kind: form.kind,
         category: form.category,
         tags: parseTags(form.tags),
-        concertId: form.concertId || null,
+    concertId: form.concertId || null,
         status: form.status,
         summary: form.summary.trim(),
         owner: form.owner.trim(),
@@ -243,67 +543,45 @@ export function Documents() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "削除に失敗しました")
       toast.success("台帳から外しました")
+      setDialogOpen(false)
+      setEditing(null)
       await reload()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "削除に失敗しました")
     }
   }
 
-  const createDoc = async () => {
-    if (!createForm.title.trim()) {
-      toast.error("タイトルを入力してください")
-      return
-    }
-    setCreating(true)
+  const setMemberVisible = async (doc: PortalDocument, visible: boolean) => {
+    if (doc.memberVisible === visible) return
+    const next = { ...doc, memberVisible: visible }
+    setDocuments((prev) => prev.map((d) => (d.id === doc.id ? next : d)))
+    if (editing?.id === doc.id) setEditing(next)
     try {
-      const res = await fetch("/api/documents/create", {
-        method: "POST",
+      const res = await fetch("/api/documents", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: createForm.title.trim(),
-          category: createForm.category,
-          summary: createForm.summary.trim(),
-          owner: createForm.owner.trim(),
-          tags: parseTags(createForm.tags),
-          concertId: createForm.concertId || null,
-        }),
+        body: JSON.stringify({ document: { id: doc.id, memberVisible: visible } }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || data.hint || "作成に失敗しました")
-      toast.success("Google ドキュメントを作成して台帳に登録しました")
-      setCreateOpen(false)
-      setCreateForm({ title: "", category: "その他", summary: "", owner: "", tags: "", concertId: "" })
-      await reload()
-      if (data.url) window.open(data.url, "_blank", "noopener,noreferrer")
+      if (!res.ok) throw new Error(data.error || "更新に失敗しました")
+      toast.success(visible ? "団員ホームに表示します" : "団員ホームから外しました")
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "作成に失敗しました")
-    } finally {
-      setCreating(false)
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? doc : d)))
+      if (editing?.id === doc.id) setEditing(doc)
+      toast.error(e instanceof Error ? e.message : "更新に失敗しました")
     }
   }
 
-  const loadDrive = async () => {
-    setDriveLoading(true)
-    setDriveError(null)
-    try {
-      const res = await fetch("/api/documents/drive", { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || data.hint || "Drive を読めませんでした")
-      setDriveFiles(Array.isArray(data.files) ? data.files : [])
-      setDriveFolderUrl(data.folderUrl ?? "")
-    } catch (e) {
-      setDriveError(e instanceof Error ? e.message : "Drive を読めませんでした")
-    } finally {
-      setDriveLoading(false)
+  const publishFolderFile = async (
+    file: { id: string; name: string; kind: DocumentKind; url?: string },
+    visible: boolean,
+  ) => {
+    const existing = byFileId.get(file.id)
+    if (existing) {
+      await setMemberVisible(existing, visible)
+      return
     }
-  }
-
-  const openDrive = () => {
-    setDriveOpen(true)
-    void loadDrive()
-  }
-
-  const importDriveFile = async (file: DriveListedFile) => {
+    if (!visible) return
     setImportingId(file.id)
     try {
       const res = await fetch("/api/documents", {
@@ -312,44 +590,23 @@ export function Documents() {
         body: JSON.stringify({
           document: {
             title: file.name,
-            url: file.url,
+            url: file.url || `https://drive.google.com/file/d/${file.id}/view`,
             kind: file.kind,
             fileId: file.id,
             category: "その他",
             status: "active",
+            memberVisible: true,
           },
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "取り込みに失敗しました")
-      toast.success(`「${file.name}」を台帳に追加しました`)
-      setDriveFiles((prev) => prev.map((f) => (f.id === file.id ? { ...f, registered: true } : f)))
+      toast.success(`「${file.name}」を団員ホームに表示します`)
       await reload()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "取り込みに失敗しました")
+      toast.error(e instanceof Error ? e.message : "更新に失敗しました")
     } finally {
       setImportingId(null)
-    }
-  }
-
-  const concertName = (id: string | null) =>
-    id ? concerts.find((c) => c.id === id)?.name ?? null : null
-
-  const toggleMemberVisible = async (doc: PortalDocument) => {
-    const next = { ...doc, memberVisible: !doc.memberVisible }
-    setDocuments((prev) => prev.map((d) => (d.id === doc.id ? next : d)))
-    try {
-      const res = await fetch("/api/documents", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: { id: doc.id, memberVisible: next.memberVisible } }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "更新に失敗しました")
-      toast.success(next.memberVisible ? "団員ホームに表示します" : "団員ホームから外しました")
-    } catch (e) {
-      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? doc : d)))
-      toast.error(e instanceof Error ? e.message : "更新に失敗しました")
     }
   }
 
@@ -359,25 +616,29 @@ export function Documents() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">書類</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Docs / Sheets / Drive / NotebookLM の場所を台帳にして探します。元ファイルは Google 側のままです。
+            ファイルごとに団員ホームへ掲載します。フォルダは下の表から階層を辿って選んでください。
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => void reload()}>
-            <RefreshCw className="w-4 h-4 mr-1.5" />
-            再読み込み
-          </Button>
-          <Button variant="outline" size="sm" onClick={openDrive}>
-            <FolderOpen className="w-4 h-4 mr-1.5" />
-            Drive から取り込む
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
-            <FilePlus className="w-4 h-4 mr-1.5" />
-            新規ドキュメント
-          </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setFilterOpen((open) => !open)}
+            className={`relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              filterOpen || filtersActive
+                ? "bg-secondary text-foreground"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+            aria-label="フィルター"
+            aria-expanded={filterOpen}
+          >
+            <Filter className="w-4 h-4" />
+            {filtersActive && (
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
+            )}
+          </button>
           <Button size="sm" onClick={openNew}>
             <Plus className="w-4 h-4 mr-1.5" />
-            URL を登録
+            書類を登録
           </Button>
         </div>
       </header>
@@ -386,147 +647,209 @@ export function Documents() {
         <p className="text-sm text-destructive">読み込みエラー: {error}</p>
       )}
 
-      <div className="flex flex-col gap-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="タイトル・要約・タグで検索"
-            className="pl-9"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="h-8 w-32 text-xs">
-              <SelectValue placeholder="分類" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての分類</SelectItem>
-              {DOCUMENT_CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={kind} onValueChange={setKind}>
-            <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue placeholder="種類" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての種類</SelectItem>
-              {DOCUMENT_KINDS.map((k) => (
-                <SelectItem key={k} value={k}>{KIND_LABEL[k]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="h-8 w-32 text-xs">
-              <SelectValue placeholder="状態" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての状態</SelectItem>
-              {DOCUMENT_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={concertFilter} onValueChange={setConcertFilter}>
-            <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue placeholder="演奏会" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての演奏会</SelectItem>
-              <SelectItem value="none">紐付けなし</SelectItem>
-              {concerts.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-muted-foreground text-center py-10">読み込み中…</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-10">
-          {documents.length === 0
-            ? "まだ登録がありません。URL を貼るか、Drive から取り込んでください。"
-            : "条件に合う書類がありません。"}
-        </p>
-      ) : (
+      {filterOpen && (
         <div className="flex flex-col gap-2">
-          {filtered.map((doc) => {
-            const concert = concertName(doc.concertId)
-            return (
-              <Card key={doc.id} className="border border-border bg-card">
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
-                    <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {doc.url ? (
-                          <a
-                            href={doc.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm font-medium text-foreground hover:underline truncate"
-                          >
-                            {doc.title}
-                          </a>
-                        ) : (
-                          <p className="text-sm font-medium text-foreground truncate">{doc.title}</p>
-                        )}
-                        {doc.url && (
-                          <a href={doc.url} target="_blank" rel="noreferrer" className="text-muted-foreground shrink-0" aria-label="開く">
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        )}
-                      </div>
-                      {doc.summary && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">{doc.summary}</p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{KIND_LABEL[doc.kind]}</Badge>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{doc.category}</Badge>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{STATUS_LABEL[doc.status]}</Badge>
-                        {concert && (
-                          <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{concert}</span>
-                        )}
-                        {doc.tags.map((tag) => (
-                          <span key={tag} className="text-[10px] text-muted-foreground">#{tag}</span>
-                        ))}
-                        {doc.owner && (
-                          <span className="text-[10px] text-muted-foreground">{doc.owner}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
-                        <Switch
-                          checked={doc.memberVisible}
-                          onCheckedChange={() => void toggleMemberVisible(doc)}
-                          aria-label="団員に見せる"
-                        />
-                        団員に見せる
-                      </label>
-                      <button type="button" onClick={() => openEdit(doc)} className="text-muted-foreground hover:text-foreground p-1" aria-label="編集">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button type="button" onClick={() => void removeDocument(doc)} className="text-muted-foreground hover:text-destructive p-1" aria-label="削除">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="タイトル・要約・タグで検索"
+              className="pl-9"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectValue placeholder="分類" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての分類</SelectItem>
+                {DOCUMENT_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={kind} onValueChange={setKind}>
+              <SelectTrigger className="h-8 w-40 text-xs">
+                <SelectValue placeholder="種類" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての種類</SelectItem>
+                {DOCUMENT_KINDS.map((k) => (
+                  <SelectItem key={k} value={k}>{KIND_LABEL[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectValue placeholder="状態" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての状態</SelectItem>
+                {DOCUMENT_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={concertFilter} onValueChange={setConcertFilter}>
+              <SelectTrigger className="h-8 w-40 text-xs">
+                <SelectValue placeholder="演奏会" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての演奏会</SelectItem>
+                <SelectItem value="none">一般</SelectItem>
+                {concerts.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={clearFilters}
+              disabled={!filtersActive}
+            >
+              フィルター解除
+            </Button>
+          </div>
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {loading ? (
+        <p className="text-sm text-muted-foreground text-center py-10">読み込み中…</p>
+      ) : viewerTrail.length > 0 ? (
+        <Card className="border border-border bg-card">
+          <CardHeader className="pb-0">
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground p-1 shrink-0"
+                aria-label={viewerTrail.length > 1 ? "上のフォルダへ" : "一覧へ戻る"}
+                onClick={() => setViewerTrail((prev) => prev.slice(0, -1))}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="truncate">{currentView?.name ?? "書類"}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 mt-4">
+            {viewLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-16">読み込み中…</p>
+            ) : viewError ? (
+              <p className="text-sm text-destructive text-center px-4 py-16">{viewError}</p>
+            ) : viewData?.view === "folder" ? (
+              <ul className="divide-y divide-border">
+                {(viewData.files ?? []).length === 0 ? (
+                  <li className="text-sm text-muted-foreground text-center py-16">空のフォルダです</li>
+                ) : (
+                  (viewData.files ?? []).map((file) => (
+                    <li key={file.id} className="flex items-center gap-2 px-4 py-2 hover:bg-secondary/40">
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 flex items-center gap-2 text-left"
+                        onClick={() => setViewerTrail((prev) => [...prev, { id: file.id, name: file.name }])}
+                      >
+                        {file.kind === "folder" ? (
+                          <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        )}
+                        <span className="text-sm truncate flex-1">{file.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">{KIND_LABEL[file.kind]}</span>
+                      </button>
+                      {file.kind !== "folder" && (
+                        <Switch
+                          checked={byFileId.get(file.id)?.memberVisible ?? false}
+                          disabled={importingId === file.id}
+                          onCheckedChange={(checked) => void publishFolderFile(file, checked)}
+                          aria-label={`${file.name}を団員ホームに見せる`}
+                        />
+                      )}
+                    </li>
+                  ))
+                )}
+              </ul>
+            ) : viewData && (viewData.view === "pdf" || viewData.view === "image") && currentView ? (
+              <DocumentPreview fileId={currentView.id} view={viewData.view} />
+            ) : (
+              <p className="text-sm text-muted-foreground text-center px-4 py-16">
+                この形式は Portal 内ではまだ開けません。
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : documents.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          まだ登録がありません。「書類を登録」から URL を貼ってください。
+        </p>
+      ) : fileDocs.length === 0 && folderDocs.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          条件に合う書類がありません。
+        </p>
+      ) : (
+        <>
+          {kind !== "folder" && (
+            <Card className="border border-border bg-card">
+              <CardHeader className="pb-0">
+                <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                  書類一覧
+                  <Badge variant="secondary" className="bg-secondary text-secondary-foreground ml-1">
+                    {fileDocs.length}件
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 mt-4">
+                {fileDocs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-12">
+                    ファイルはありません。下のフォルダから階層を開いて掲載するファイルを選んでください。
+                  </p>
+                ) : (
+                  <DocsTable
+                    docs={fileDocs}
+                    memberColumn
+                    onOpen={openViewer}
+                    onDetail={openEdit}
+                    onToggleMember={(doc, visible) => void setMemberVisible(doc, visible)}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {(kind === "all" || kind === "folder") && (
+            <Card className="border border-border bg-card">
+              <CardHeader className="pb-0">
+                <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                  フォルダ
+                  <Badge variant="secondary" className="bg-secondary text-secondary-foreground ml-1">
+                    {folderDocs.length}件
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 mt-4">
+                {folderDocs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-12">
+                    登録されているフォルダはありません。
+                  </p>
+                ) : (
+                  <DocsTable
+                    docs={folderDocs}
+                    onOpen={openViewer}
+                    onDetail={openEdit}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditing(null) }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "書類を編集" : "URL を登録"}</DialogTitle>
+            <DialogTitle>{editing ? "書類を編集" : "書類を登録"}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-1">
             <div className="space-y-1.5">
@@ -595,140 +918,76 @@ export function Documents() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>演奏会</Label>
-                <Select value={form.concertId || "none"} onValueChange={(v) => setForm((f) => ({ ...f, concertId: v === "none" ? "" : v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">紐付けなし</SelectItem>
-                    {concerts.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="doc-tags">タグ</Label>
-                <Input id="doc-tags" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="春公演, 会場" />
-              </div>
-              <div className="space-y-1.5">
                 <Label htmlFor="doc-owner">担当</Label>
                 <Input id="doc-owner" value={form.owner} onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))} placeholder="事務" />
               </div>
             </div>
-            <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-              <span className="text-sm">団員ホームに見せる</span>
-              <Switch
-                checked={form.memberVisible}
-                onCheckedChange={(checked) => setForm((f) => ({ ...f, memberVisible: checked }))}
-              />
-            </label>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)}>キャンセル</Button>
-            <Button onClick={() => void saveDocument()} disabled={saving}>
-              {saving && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-              {editing ? "更新" : "登録"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>新規ドキュメントを作る</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 py-1">
-            <p className="text-xs text-muted-foreground">
-              共有フォルダに Google ドキュメントを作り、台帳へ登録します。作成後に本文を編集できます。
-            </p>
             <div className="space-y-1.5">
-              <Label htmlFor="new-doc-title">タイトル</Label>
-              <Input id="new-doc-title" value={createForm.title} onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))} placeholder="例: 2026春 会場メモ" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>分類</Label>
-              <Select value={createForm.category} onValueChange={(v) => setCreateForm((f) => ({ ...f, category: v as DocumentCategory }))}>
+              <Label>演奏会</Label>
+              <Select value={form.concertId || "none"} onValueChange={(v) => setForm((f) => ({ ...f, concertId: v === "none" ? "" : v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {DOCUMENT_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>演奏会（任意）</Label>
-              <Select value={createForm.concertId || "none"} onValueChange={(v) => setCreateForm((f) => ({ ...f, concertId: v === "none" ? "" : v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">紐付けなし</SelectItem>
-                  {concerts.map((c) => (
+                  <SelectItem value="none">一般</SelectItem>
+                  {concertOptions.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => void addNextConcert()}
+                disabled={addingConcert}
+              >
+                {addingConcert && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                第{nextConcertNumber}回を追加
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                共通の書類は「一般」、特定の回だけなら「第N回」。回数はシート「Concerts」「演奏会」「演奏会分類」に 1, 2, 3… と書くか、上のボタンで足します。会計・規約などの分類とは別です。
+              </p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="new-doc-summary">要約</Label>
-              <Textarea id="new-doc-summary" rows={2} value={createForm.summary} onChange={(e) => setCreateForm((f) => ({ ...f, summary: e.target.value }))} />
+              <Label htmlFor="doc-tags">タグ</Label>
+              <Input id="doc-tags" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="春公演, 会場" />
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setCreateOpen(false)}>キャンセル</Button>
-            <Button onClick={() => void createDoc()} disabled={creating}>
-              {creating && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
-              作成して開く
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={driveOpen} onOpenChange={setDriveOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Drive フォルダから取り込む</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              {driveFolderUrl ? (
-                <a href={driveFolderUrl} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:underline truncate">
-                  共有フォルダを開く
-                </a>
-              ) : (
-                <span className="text-xs text-muted-foreground">共有フォルダ</span>
-              )}
-              <Button variant="outline" size="sm" onClick={() => void loadDrive()} disabled={driveLoading}>
-                {driveLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              </Button>
-            </div>
-            {driveError && <p className="text-sm text-destructive">{driveError}</p>}
-            {driveLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-6">読み込み中…</p>
-            ) : driveFiles.length === 0 && !driveError ? (
-              <p className="text-sm text-muted-foreground text-center py-6">フォルダは空です</p>
+            {form.kind === "folder" ? (
+              <p className="text-sm text-muted-foreground">
+                フォルダそのものは団員ホームに出しません。中を開いて、ファイルごとに掲載を選んでください。
+              </p>
             ) : (
-              <div className="flex flex-col gap-2">
-                {driveFiles.map((file) => (
-                  <div key={file.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{file.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{KIND_LABEL[file.kind]}</p>
-                    </div>
-                    {file.registered ? (
-                      <Badge variant="outline" className="text-[10px]">登録済み</Badge>
-                    ) : (
-                      <Button size="sm" variant="outline" disabled={importingId === file.id} onClick={() => void importDriveFile(file)}>
-                        {importingId === file.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "取り込む"}
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                <span className="text-sm">団員ホームに見せる</span>
+                <Switch
+                  checked={form.memberVisible}
+                  onCheckedChange={(checked) => setForm((f) => ({ ...f, memberVisible: checked }))}
+                />
+              </label>
             )}
           </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-between">
+            {editing ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => void removeDocument(editing)}
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                台帳から外す
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={() => setDialogOpen(false)}>キャンセル</Button>
+              <Button onClick={() => void saveDocument()} disabled={saving}>
+                {saving && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+                {editing ? "更新" : "登録"}
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -752,8 +1011,10 @@ export function DocumentsSummary({
   }, [data.taskConcerts])
 
   const related = useMemo(() => {
-    const active = documents.filter((d) => d.status !== "archived")
-    const byConcert = upcoming ? active.filter((d) => d.concertId === upcoming.id) : []
+    const active = documents.filter((d) => d.status !== "archived" && d.kind !== "folder")
+    const byConcert = upcoming
+      ? active.filter((d) => sameConcertEdition(d.concertId, upcoming.id) || sameConcertEdition(d.concertId, upcoming.name))
+      : []
     const source = byConcert.length > 0 ? byConcert : active
     return source.slice(0, 4)
   }, [documents, upcoming])

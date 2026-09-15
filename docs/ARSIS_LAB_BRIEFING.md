@@ -143,6 +143,7 @@ Portal のサービスアカウントから読める。
 | Member page | 使う | 団員マスタ |
 | AppData | 使う | 公演・練習・タスク・エキストラ契約 |
 | Documents | 使う | 書類台帳 |
+| Concerts / 演奏会 / 演奏会分類 | 使う | 書類の第N回リスト（`1` `2` `3`…） |
 | Article | 使わない | 公開サイトの記事 |
 | config | 使わない | 公開サイトのスイッチ |
 | URL集 / フォーム / 曲目・編成 / 練習場 / 緊急連絡先 | 使わない | 参照・メモ |
@@ -152,14 +153,18 @@ Portal のサービスアカウントから読める。
 
 ### 6.2 ドライブ『Arsis Chamber Orchestra』
 
-Portal の `GOOGLE_DRIVE_FOLDER_ID` が指す親フォルダ。直下: 書類（一般）/ 第1回演奏会 / Arsis その他。  
-「Drive から取り込む」は **直下のみ**。
+Portal の `GOOGLE_DRIVE_FOLDER_ID` が指す親フォルダ。  
+直下のフォルダ: 書類（一般）/ CF / 第1回演奏会 / 第2回演奏会 / ホルン四重奏9/6 / 開発アーカイブ / Arsis その他。  
+入口として直下に残しているもの: 運営ガイド、マスタブック、課題ボード、Links for promotion、アイデアページ、Instagram insight。  
+会計シート（各回会計／ArsisCO 会計）は親の外。Portal の書類台帳には載せない。  
+フォルダの中身は、台帳に登録したフォルダから Portal 内で辿る。
 
 ### 6.3 ドキュメント『ArsisCO 運営ガイド』
 
 - URL: https://docs.google.com/document/d/10NZfpK_qB02rDlsvD_CIQ1VKnLBoOmwVhkuTw9ycYMU/edit
+- タブ: Home / 目次 / v2本編
+- 正本は v2本編。リポジトリの写しは `docs/ARSISCO_GUIDE_V2.md`
 - 書類台帳に登録済み（id: `doc-mt5hfgwj-jus6fh`）
-- リポジトリ内に `operations-guide.md` は無い
 
 ---
 

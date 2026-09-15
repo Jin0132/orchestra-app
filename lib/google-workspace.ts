@@ -156,25 +156,97 @@ export async function listDriveFolderFiles(folderId = getDriveFolderId()): Promi
   return { folderId, files }
 }
 
-export async function createGoogleDocInFolder(title: string, folderId = getDriveFolderId()) {
+const EXPORT_AS_PDF = new Set([
+  "application/vnd.google-apps.document",
+  "application/vnd.google-apps.spreadsheet",
+  "application/vnd.google-apps.presentation",
+  "application/vnd.google-apps.drawing",
+])
+
+export type PortalViewType = "folder" | "pdf" | "image" | "unsupported"
+
+export type PortalFileMeta = {
+  id: string
+  name: string
+  mimeType: string
+  kind: DocumentKind
+  view: PortalViewType
+}
+
+function viewTypeFromMime(mimeType: string): PortalViewType {
+  if (mimeType === "application/vnd.google-apps.folder") return "folder"
+  if (EXPORT_AS_PDF.has(mimeType) || mimeType === "application/pdf") return "pdf"
+  if (mimeType.startsWith("image/")) return "image"
+  return "unsupported"
+}
+
+export async function getDriveFileMeta(fileId: string): Promise<PortalFileMeta> {
   const drive = getDriveClient()
-  const created = await drive.files.create({
-    requestBody: {
-      name: title,
-      mimeType: "application/vnd.google-apps.document",
-      parents: [folderId],
-    },
-    fields: "id,name,mimeType,webViewLink",
+  const file = await drive.files.get({
+    fileId,
+    fields: "id,name,mimeType",
     supportsAllDrives: true,
   })
-  const fileId = created.data.id
-  if (!fileId) {
-    throw new Error("ドキュメントの作成に失敗しました")
+  const mimeType = file.data.mimeType ?? ""
+  return {
+    id: file.data.id ?? fileId,
+    name: file.data.name ?? "(無題)",
+    mimeType,
+    kind: kindFromMime(mimeType, "other"),
+    view: viewTypeFromMime(mimeType),
+  }
+}
+
+function asBuffer(data: unknown): Buffer {
+  if (Buffer.isBuffer(data)) return data
+  if (data instanceof ArrayBuffer) return Buffer.from(data)
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+  }
+  throw new Error("ファイルの読み取りに失敗しました")
+}
+
+export async function loadDriveFileBytes(fileId: string): Promise<{
+  bytes: Buffer
+  mimeType: string
+  name: string
+}> {
+  const meta = await getDriveFileMeta(fileId)
+  if (meta.view === "folder") {
+    throw new Error("フォルダは中身の一覧で開きます")
+  }
+  if (meta.view === "unsupported") {
+    throw new Error(`この形式（${meta.mimeType || "不明"}）は Portal 内ではまだ開けません`)
+  }
+
+  const drive = getDriveClient()
+  let mimeType = meta.mimeType || "application/octet-stream"
+  let res: { data: unknown }
+
+  if (EXPORT_AS_PDF.has(meta.mimeType)) {
+    res = await drive.files.export(
+      { fileId: meta.id, mimeType: "application/pdf" },
+      { responseType: "arraybuffer" },
+    )
+    mimeType = "application/pdf"
+  } else {
+    res = await drive.files.get(
+      { fileId: meta.id, alt: "media", supportsAllDrives: true },
+      { responseType: "arraybuffer" },
+    )
+  }
+
+  const bytes = asBuffer(res.data)
+  const maxBytes = 25 * 1024 * 1024
+  if (bytes.length > maxBytes) {
+    throw new Error("ファイルが大きすぎて Portal 内では開けません")
+  }
+  if (mimeType.startsWith("application/pdf") && bytes.subarray(0, 4).toString() !== "%PDF") {
+    throw new Error("PDF として開けませんでした")
   }
   return {
-    fileId,
-    title: created.data.name ?? title,
-    url: created.data.webViewLink || `https://docs.google.com/document/d/${fileId}/edit`,
-    kind: "doc" as const,
+    bytes,
+    mimeType,
+    name: meta.name,
   }
 }

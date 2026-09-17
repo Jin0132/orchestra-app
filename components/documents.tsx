@@ -35,8 +35,8 @@ import {
   Filter,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useAppData } from "@/hooks/use-app-data"
 import { useDocuments } from "@/hooks/use-documents"
+import { useConcerts } from "@/hooks/use-concerts"
 import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_KINDS,
@@ -48,6 +48,7 @@ import {
   parseConcertNumber,
   parseTags,
   parseGoogleResource,
+  pickUpcomingConcert,
   sameConcertEdition,
   type ConcertEdition,
   type DocumentCategory,
@@ -311,7 +312,8 @@ function matchesQuery(doc: PortalDocument, q: string) {
 }
 
 export function Documents() {
-  const { documents, concerts, loading, error, reload, setDocuments } = useDocuments()
+  const { documents, loading, error, reload, setDocuments } = useDocuments()
+  const { concerts, addNext } = useConcerts()
 
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState<string>("all")
@@ -477,16 +479,9 @@ export function Documents() {
   const addNextConcert = async () => {
     setAddingConcert(true)
     try {
-      const res = await fetch("/api/concerts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: String(nextConcertNumber) }),
-      })
-      const data = (await res.json()) as ConcertEdition & { error?: string }
-      if (!res.ok) throw new Error(data.error || "追加に失敗しました")
+      const data = await addNext(String(nextConcertNumber))
       toast.success(`${data.name} を追加しました`)
       setForm((f) => ({ ...f, concertId: data.id }))
-      await reload()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "追加に失敗しました")
     } finally {
@@ -945,7 +940,7 @@ export function Documents() {
                 第{nextConcertNumber}回を追加
               </Button>
               <p className="text-[11px] text-muted-foreground">
-                共通の書類は「一般」、特定の回だけなら「第N回」。回数はシート「Concerts」「演奏会」「演奏会分類」に 1, 2, 3… と書くか、上のボタンで足します。会計・規約などの分類とは別です。
+                共通の書類は「一般」、その回だけなら「第N回」。回数は団で一つです。下のボタンかダッシュボードから足します。
               </p>
             </div>
             <div className="space-y-1.5">
@@ -1000,15 +995,8 @@ export function DocumentsSummary({
   onNavigate?: () => void
 }) {
   const { documents, loading } = useDocuments()
-  const { data } = useAppData()
-
-  const upcoming = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
-    const dated = data.taskConcerts
-      .filter((c) => c.date)
-      .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
-    return dated.find((c) => (c.date ?? "") >= today) ?? dated[0] ?? null
-  }, [data.taskConcerts])
+  const { concerts } = useConcerts()
+  const upcoming = useMemo(() => pickUpcomingConcert(concerts), [concerts])
 
   const related = useMemo(() => {
     const active = documents.filter((d) => d.status !== "archived" && d.kind !== "folder")

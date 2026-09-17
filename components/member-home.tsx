@@ -5,7 +5,9 @@ import { format, differenceInDays, parseISO } from "date-fns"
 import { ja } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useAppData } from "@/hooks/use-app-data"
+import { useConcerts } from "@/hooks/use-concerts"
 import { useDocuments } from "@/hooks/use-documents"
+import { pickUpcomingConcert, concertEditionLabel } from "@/lib/document-catalog"
 
 function displayOrPending(value: string | null | undefined) {
   const t = value?.trim()
@@ -69,11 +71,18 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function MemberHome() {
   const { data, loading, error } = useAppData()
   const { documents, loading: docsLoading } = useDocuments()
+  const { concerts } = useConcerts()
+  const upcomingDated = pickUpcomingConcert(concerts)
+  const upcoming = upcomingDated ?? concerts[0] ?? null
+  const nextDate = upcoming?.date || data.concert.nextConcertDate
+  const hall = upcoming?.hall || data.concert.hall
+  const rehearsalTime = upcoming?.rehearsalTime || data.concert.rehearsalTime
+  const concertTime = upcoming?.concertTime || data.concert.concertTime
 
-  const nextConcertDays = data.concert.nextConcertDate
+  const nextConcertDays = nextDate
     ? (() => {
         try {
-          return differenceInDays(parseISO(data.concert.nextConcertDate!), new Date())
+          return differenceInDays(parseISO(nextDate), new Date())
         } catch {
           return null
         }
@@ -100,23 +109,23 @@ export function MemberHome() {
 
         <div className="flex flex-col gap-16 sm:gap-20">
           <section>
-            <SectionLabel>次回公演</SectionLabel>
+            <SectionLabel>次回公演{upcoming ? ` ${upcoming.name || concertEditionLabel(upcoming.id)}` : ""}</SectionLabel>
             {loading ? (
               <p className="mt-3 text-sm text-muted-foreground">読み込み中…</p>
             ) : (
               <div className="mt-3">
                 <p className="text-3xl sm:text-[2.5rem] font-semibold tracking-tight text-foreground leading-tight">
-                  {formatConcertDate(data.concert.nextConcertDate)}
+                  {formatConcertDate(nextDate)}
                 </p>
-                <p className="mt-7 text-lg text-foreground">{displayOrPending(data.concert.hall)}</p>
+                <p className="mt-7 text-lg text-foreground">{displayOrPending(hall)}</p>
                 <dl className="mt-6 inline-flex flex-col items-center gap-2 text-sm">
                   <div className="flex items-baseline justify-center gap-3">
                     <dt className="text-muted-foreground">ゲネプロ</dt>
-                    <dd>{displayOrPending(data.concert.rehearsalTime)}</dd>
+                    <dd>{displayOrPending(rehearsalTime)}</dd>
                   </div>
                   <div className="flex items-baseline justify-center gap-3">
                     <dt className="text-muted-foreground">本番</dt>
-                    <dd>{displayOrPending(data.concert.concertTime)}</dd>
+                    <dd>{displayOrPending(concertTime)}</dd>
                   </div>
                 </dl>
               </div>

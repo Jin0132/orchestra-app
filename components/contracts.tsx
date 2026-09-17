@@ -40,6 +40,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAppData } from "@/hooks/use-app-data"
+import { useConcerts } from "@/hooks/use-concerts"
+import { concertEditionId, concertEditionLabel, isGeneralConcert, sameConcertEdition } from "@/lib/document-catalog"
 import { Loader2 } from "lucide-react"
 
 type ContractStatus = "confirmed" | "pending" | "declined" | "draft"
@@ -73,6 +75,7 @@ function escapeCsv(val: string | number): string {
 
 export function Contracts() {
   const { data: appData, loading, saving, update } = useAppData()
+  const { concerts: editions } = useConcerts()
   const contracts = (appData.contracts as unknown as Contract[]) ?? []
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -83,7 +86,7 @@ export function Contracts() {
     email: "",
     phone: "",
     instrument: "",
-    concert: "第42回定期演奏会",
+    concert: "",
     concertDate: "",
     rehearsals: 3,
     fee: 35000,
@@ -101,11 +104,12 @@ export function Contracts() {
       c.instrument.includes(searchQuery) ||
       c.email.includes(searchQuery)
     const matchStatus = statusFilter === "all" || c.status === statusFilter
-    const matchConcert = concertFilter === "all" || c.concert === concertFilter
+    const matchConcert =
+      concertFilter === "all" ||
+      (concertFilter === "none" && isGeneralConcert(c.concert)) ||
+      sameConcertEdition(c.concert, concertFilter)
     return matchSearch && matchStatus && matchConcert
   })
-
-  const concerts = Array.from(new Set(contracts.map((c) => c.concert)))
 
   const handleAddContract = () => {
     if (!newContract.name.trim()) {
@@ -133,7 +137,7 @@ export function Contracts() {
       email: "",
       phone: "",
       instrument: "",
-      concert: "第42回定期演奏会",
+      concert: "",
       concertDate: "",
       rehearsals: 3,
       fee: 35000,
@@ -303,18 +307,30 @@ export function Contracts() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label className="text-foreground">公演</Label>
+                  <Label className="text-foreground">回</Label>
                   <Select
-                    value={newContract.concert}
-                    onValueChange={(v) => setNewContract((p) => ({ ...p, concert: v }))}
+                    value={newContract.concert || "none"}
+                    onValueChange={(v) => {
+                      if (v === "none") {
+                        setNewContract((p) => ({ ...p, concert: "", concertDate: p.concertDate }))
+                        return
+                      }
+                      const edition = editions.find((e) => e.id === v)
+                      setNewContract((p) => ({
+                        ...p,
+                        concert: v,
+                        concertDate: edition?.date || p.concertDate,
+                      }))
+                    }}
                   >
                     <SelectTrigger className="bg-secondary/50 border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="第42回定期演奏会">第42回定期演奏会</SelectItem>
-                      <SelectItem value="第43回定期演奏会">第43回定期演奏会</SelectItem>
-                      <SelectItem value="特別演奏会 2026">特別演奏会 2026</SelectItem>
+                      <SelectItem value="none">一般</SelectItem>
+                      {editions.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name || concertEditionLabel(c.id)}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -386,10 +402,11 @@ export function Contracts() {
             <SelectValue placeholder="公演" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全公演</SelectItem>
-            {concerts.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
+            <SelectItem value="all">すべての回</SelectItem>
+            <SelectItem value="none">一般</SelectItem>
+            {editions.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name || concertEditionLabel(c.id)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -455,7 +472,9 @@ export function Contracts() {
                       </td>
                       <td className="px-4 py-4 text-sm text-foreground">{contract.instrument}</td>
                       <td className="px-4 py-4">
-                        <span className="text-sm text-foreground">{contract.concert}</span>
+                        <span className="text-sm text-foreground">
+                          {isGeneralConcert(contract.concert) ? "一般" : concertEditionLabel(concertEditionId(contract.concert) ?? contract.concert)}
+                        </span>
                         <p className="text-xs text-muted-foreground">{contract.concertDate}</p>
                       </td>
                       <td className="px-4 py-4 text-sm text-foreground text-center">{contract.rehearsals}回</td>

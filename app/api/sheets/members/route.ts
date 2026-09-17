@@ -5,11 +5,13 @@ import {
   getHeaderIndexMap,
   HEADERS,
   loadMemberSheet,
+  ensureMemberHeaderColumns,
   memberRowToValuesByHeader,
   rowToMemberRowByHeader,
   toA1Column,
   type MemberRow,
 } from "@/lib/sheets"
+import { concertIdListCell, joinYearAsEditionId, parseConcertIdList } from "@/lib/document-catalog"
 
 export type ApiMember = {
   id: string
@@ -18,6 +20,7 @@ export type ApiMember = {
   part: string
   partRank?: string
   joinYear: number
+  concertIds: string[]
   role: string
   attendance: number
   email: string
@@ -53,13 +56,17 @@ function rowToMember(row: MemberRow): ApiMember {
   }
   const joinYear = parseInt(row.joinYear || "0", 10)
   const attendance = parseInt(row.attendance || "0", 10)
+  const fromList = parseConcertIdList(row.concertIds)
+  const fromJoin = joinYearAsEditionId(isNaN(joinYear) ? row.joinYear : joinYear)
+  const concertIds = fromList.length ? fromList : fromJoin ? [fromJoin] : []
   return {
     id: row.id || `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: row.name || "",
     instrument: row.instrument || "",
     part: row.part || "",
     partRank: row.partRank || undefined,
-    joinYear: isNaN(joinYear) ? 0 : joinYear,
+    joinYear: concertIds.length ? Number(concertIds[0]) : isNaN(joinYear) ? 0 : joinYear,
+    concertIds,
     role: row.role || "",
     attendance: isNaN(attendance) ? 0 : Math.min(100, Math.max(0, attendance)),
     email: row.email || "",
@@ -89,7 +96,8 @@ function memberToMemberRow(m: ApiMember): MemberRow {
     extraRequestStatus: m.extraRequestStatus ?? "",
     requestedPracticeIds: JSON.stringify(m.requestedPracticeIds ?? []),
     instrument: m.instrument ?? "",
-    joinYear: String(m.joinYear ?? 0),
+    joinYear: String(m.concertIds?.[0] ?? m.joinYear ?? 0),
+    concertIds: concertIdListCell(m.concertIds ?? (m.joinYear ? [String(m.joinYear)] : [])),
     attendance: String(m.attendance ?? 0),
     photoUrl: m.photoUrl ?? "",
     updatedAt: m.updatedAt ?? nowYmdHm(),
@@ -108,11 +116,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const id = request.nextUrl.searchParams.get("id")?.trim()
-    const { rows } = await loadMemberSheet()
+    const { sheets, spreadsheetId, rows, sheetName, headerRow } = await ensureMemberHeaderColumns(await loadMemberSheet())
     if (rows.length < 2) {
       return NextResponse.json([], { headers: noStore })
     }
-    const headerRow = (rows[0] ?? []).map((c) => String(c ?? ""))
     const dataRows = rows.slice(1)
     const members: ApiMember[] = dataRows
       .map((values) => {
@@ -155,25 +162,13 @@ export async function POST(request: NextRequest) {
       id,
       instrument: member.instrument ?? "",
       joinYear: member.joinYear ?? 0,
+      concertIds: parseConcertIdList(member.concertIds ?? (member.joinYear ? [String(member.joinYear)] : [])),
       attendance: member.attendance ?? 0,
       updatedAt: nowYmdHm(),
     }
 
-    const { sheets, spreadsheetId, rows, sheetName } = await loadMemberSheet()
-    const headerRow =
-      rows.length > 0
-        ? (rows[0] ?? []).map((c) => String(c ?? ""))
-        : [...HEADERS]
-
-    // ヘッダー行が無い場合は先に書く
-    if (rows.length === 0) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `'${sheetName}'!A1`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [HEADERS] },
-      })
-    }
+    const loaded = await ensureMemberHeaderColumns(await loadMemberSheet())
+    const { sheets, spreadsheetId, rows, sheetName, headerRow } = loaded
 
     const values = memberRowToValuesByHeader(headerRow.length ? headerRow : [...HEADERS], memberToMemberRow(full))
     const lastCol = toA1Column(Math.max(headerRow.length, values.length))
@@ -204,11 +199,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "member.id is required" }, { status: 400 })
     }
 
-    const { sheets, spreadsheetId, rows, sheetName } = await loadMemberSheet()
+    const loaded = await ensureMemberHeaderColumns(await loadMemberSheet())
+    const { sheets, spreadsheetId, rows, sheetName, headerRow } = loaded
     if (rows.length < 2) {
       return NextResponse.json({ error: "No data rows" }, { status: 404 })
     }
-    const headerRow = (rows[0] ?? []).map((c) => String(c ?? ""))
     const dataRows = rows.slice(1)
     const rowIndex = findDataRowIndexById(dataRows, headerRow, updateData.id)
     if (rowIndex < 0) {
@@ -221,6 +216,14 @@ export async function PATCH(request: NextRequest) {
       ...currentMember,
       ...updateData,
       id: currentMember.id,
+      concertIds:
+        updateData.concertIds !== undefined
+          ? parseConcertIdList(updateData.concertIds)
+          : currentMember.concertIds,
+      joinYear:
+        updateData.concertIds !== undefined
+          ? Number(parseConcertIdList(updateData.concertIds)[0] ?? 0)
+          : (updateData.joinYear ?? currentMember.joinYear),
       updatedAt: nowYmdHm(),
     }
 

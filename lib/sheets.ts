@@ -18,6 +18,7 @@ export type MemberRow = {
   requestedPracticeIds: string
   instrument: string
   joinYear: string
+  concertIds: string
   attendance: string
   /** 奏者写真のURL（シートにはURLのみ保存、ファイルはアプリ側で表示） */
   photoUrl: string
@@ -41,6 +42,7 @@ export const HEADERS: (keyof MemberRow)[] = [
   "requestedPracticeIds",
   "instrument",
   "joinYear",
+  "concertIds",
   "attendance",
   "photoUrl",
   "updatedAt",
@@ -131,4 +133,22 @@ export async function loadMemberSheet(maxRows = 1000) {
     }
   }
   throw new Error("Member sheet not found. Expected one of: Member page, Members")
+}
+
+export async function ensureMemberHeaderColumns(loaded: Awaited<ReturnType<typeof loadMemberSheet>>) {
+  const headerRow = (loaded.rows[0] ?? []).map((c) => String(c ?? ""))
+  const existing = new Set(headerRow.map((h) => normalizeHeaderName(h)))
+  const missing = HEADERS.filter((h) => !existing.has(normalizeHeaderName(h)))
+  if (missing.length === 0) {
+    return { ...loaded, headerRow: headerRow.length ? headerRow : [...HEADERS] }
+  }
+  const nextHeader = headerRow.length ? [...headerRow, ...missing] : [...HEADERS]
+  await loaded.sheets.spreadsheets.values.update({
+    spreadsheetId: loaded.spreadsheetId,
+    range: `'${loaded.sheetName}'!A1:${toA1Column(nextHeader.length)}1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [nextHeader] },
+  })
+  const rows = loaded.rows.length > 0 ? [nextHeader, ...loaded.rows.slice(1)] : [nextHeader]
+  return { ...loaded, rows, headerRow: nextHeader }
 }

@@ -22,7 +22,7 @@ import {
   rowToPortalDocument,
   type PortalDocument,
 } from "@/lib/documents"
-import { collectConcertEditions, listConcertEditionsFromSheet } from "@/lib/concerts"
+import { loadAllConcertEditions } from "@/lib/concerts"
 import { normalizeConcertId } from "@/lib/document-catalog"
 
 export const runtime = "nodejs"
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       if (!one) return NextResponse.json({ error: "Document not found" }, { status: 404 })
       return NextResponse.json(one, { headers: noStore })
     }
-    const concerts = collectConcertEditions(documents, await listConcertEditionsFromSheet())
+    const concerts = await loadAllConcertEditions({ documents: visible })
     return NextResponse.json({ documents: visible, concerts }, { headers: noStore })
   } catch (e) {
     console.error("Documents GET error:", e)

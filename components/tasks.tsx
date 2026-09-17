@@ -59,7 +59,8 @@ import {
 } from "@/lib/task-store"
 import { useAppData } from "@/hooks/use-app-data"
 import { useDocuments } from "@/hooks/use-documents"
-import type { PortalDocument } from "@/lib/document-catalog"
+import { useConcerts } from "@/hooks/use-concerts"
+import { concertEditionLabel, isGeneralConcert, sameConcertEdition, type ConcertEdition, type PortalDocument } from "@/lib/document-catalog"
 
 /* ─── 色定義 ────────────────────────────────────── */
 const PRIORITY_COLOR: Record<Priority, string> = {
@@ -74,10 +75,22 @@ const CATEGORY_COLOR: Record<Category, string> = {
   other:    "bg-gray-500/15 text-gray-600 border-gray-500/30",
 }
 
+function toTaskConcert(edition: ConcertEdition, tasks: Task[]): Concert {
+  return {
+    id: edition.id,
+    name: edition.name || concertEditionLabel(edition.id),
+    date: edition.date ?? null,
+    venue: edition.hall ?? "",
+    tasksGenerated: tasks.some((t) => sameConcertEdition(t.concertId, edition.id)),
+  }
+}
+
 /* ─── メインコンポーネント ─────────────────────── */
 export function Tasks() {
   const { data: appData, loading: appLoading, saving: appSaving, update: appUpdate } = useAppData()
   const { documents } = useDocuments()
+  const { concerts: editions, addNext } = useConcerts()
+  const concerts = editions.map((e) => toTaskConcert(e, appData.tasks))
   /* テンプレートのみ localStorage で管理（端末ごとのカスタム設定） */
   const [templates, setTemplates] = useState<TaskTemplate[]>(DEFAULT_TEMPLATES)
   const [hydrated, setHydrated] = useState(false)
@@ -88,8 +101,6 @@ export function Tasks() {
   /* タスク編集ダイアログ */
   const [editTask, setEditTask] = useState<Task | null>(null)
   /* 演奏会追加ダイアログ */
-  const [concertOpen, setConcertOpen] = useState(false)
-  /* テンプレート編集ダイアログ */
   const [editTpl, setEditTpl] = useState<TaskTemplate | null>(null)
   /* フィルタ */
   const [filterPriority, setFilterPriority] = useState<Priority | "all">("all")
@@ -139,30 +150,24 @@ export function Tasks() {
   const removeTemplate = (id: string) =>
     persistTemplates(templates.filter((t) => t.id !== id))
 
-  /* ── 演奏会操作（Sheets経由） ── */
-  const saveConcert = (concert: Concert) => {
-    const exists = appData.taskConcerts.some((c) => c.id === concert.id)
-    const taskConcerts = exists
-      ? appData.taskConcerts.map((c) => c.id === concert.id ? concert : c)
-      : [...appData.taskConcerts, concert]
-    appUpdate({ taskConcerts })
-    toast.success(exists ? "演奏会情報を更新しました" : "演奏会を登録しました")
+  /* ── 演奏会操作 ── */
+  const addEdition = async () => {
+    try {
+      const edition = await addNext()
+      toast.success(`${edition.name} を追加しました`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "追加に失敗しました")
+    }
   }
-
-  const removeConcert = (id: string) =>
-    appUpdate({ taskConcerts: appData.taskConcerts.filter((c) => c.id !== id) })
 
   /** 演奏会終了後にテンプレートからタスクを自動生成 */
   const generateTasks = (concert: Concert) => {
     if (concert.tasksGenerated) {
-      toast.error("このコンサートのタスクはすでに生成済みです")
+      toast.error("この回のタスクはすでに生成済みです")
       return
     }
     const newTasks = generateTasksFromTemplates(templates, concert)
-    const updatedConcerts = appData.taskConcerts.map((c) =>
-      c.id === concert.id ? { ...c, tasksGenerated: true } : c,
-    )
-    appUpdate({ tasks: [...appData.tasks, ...newTasks], taskConcerts: updatedConcerts })
+    appUpdate({ tasks: [...appData.tasks, ...newTasks] })
     toast.success(`${newTasks.length}件のタスクを自動生成しました`)
   }
 
@@ -171,7 +176,8 @@ export function Tasks() {
     if (!showDone && t.done) return false
     if (filterPriority !== "all" && t.priority !== filterPriority) return false
     if (filterCategory !== "all" && t.category !== filterCategory) return false
-    if (filterConcert !== "all" && t.concertId !== filterConcert) return false
+    if (filterConcert === "none" && !isGeneralConcert(t.concertId)) return false
+    if (filterConcert !== "all" && filterConcert !== "none" && !sameConcertEdition(t.concertId, filterConcert)) return false
     return true
   })
   const pending = filtered.filter((t) => !t.done)
@@ -237,8 +243,8 @@ export function Tasks() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">すべての演奏会</SelectItem>
-                <SelectItem value="null">共通タスク</SelectItem>
-                {appData.taskConcerts.map((c) => (
+                <SelectItem value="none">一般</SelectItem>
+                {concerts.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -266,7 +272,7 @@ export function Tasks() {
                 <TaskCard
                   key={task.id}
                   task={task}
-                  concerts={appData.taskConcerts}
+                  concerts={concerts}
                   documents={documents}
                   onToggle={toggleTask}
                   onEdit={setEditTask}
@@ -284,7 +290,7 @@ export function Tasks() {
                 <TaskCard
                   key={task.id}
                   task={task}
-                  concerts={appData.taskConcerts}
+                  concerts={concerts}
                   documents={documents}
                   onToggle={toggleTask}
                   onEdit={setEditTask}
@@ -298,23 +304,22 @@ export function Tasks() {
         {/* ─── 演奏会タブ ─── */}
         <TabsContent value="concerts" className="mt-4 flex flex-col gap-4">
           <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={() => setConcertOpen(true)}>
+            <Button variant="outline" size="sm" onClick={() => void addEdition()}>
               <Plus className="w-4 h-4 mr-1" />
-              演奏会を登録
+              次の回を追加
             </Button>
           </div>
-          {appData.taskConcerts.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">演奏会が登録されていません</p>
+          {concerts.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">回がまだありません。上から第1回を足してください。</p>
           ) : (
             <div className="flex flex-col gap-3">
-              {appData.taskConcerts.map((concert) => (
+              {concerts.map((concert) => (
                 <ConcertCard
                   key={concert.id}
                   concert={concert}
-                  taskCount={appData.tasks.filter((t) => t.concertId === concert.id).length}
-                  documentCount={documents.filter((d) => d.concertId === concert.id).length}
+                  taskCount={appData.tasks.filter((t) => sameConcertEdition(t.concertId, concert.id)).length}
+                  documentCount={documents.filter((d) => sameConcertEdition(d.concertId, concert.id)).length}
                   onGenerate={generateTasks}
-                  onRemove={removeConcert}
                 />
               ))}
             </div>
@@ -350,7 +355,7 @@ export function Tasks() {
       <TaskDialog
         open={addOpen || editTask !== null}
         initial={editTask}
-        concerts={appData.taskConcerts}
+        concerts={concerts}
         documents={documents}
         onSave={(t) => { saveTask(t); setAddOpen(false); setEditTask(null) }}
         onClose={() => { setAddOpen(false); setEditTask(null) }}
@@ -362,13 +367,6 @@ export function Tasks() {
         initial={editTpl}
         onSave={(t) => { saveTemplate(t); setEditTpl(null) }}
         onClose={() => setEditTpl(null)}
-      />
-
-      {/* ─── 演奏会登録ダイアログ ─── */}
-      <ConcertDialog
-        open={concertOpen}
-        onSave={(c) => { saveConcert(c); setConcertOpen(false) }}
-        onClose={() => setConcertOpen(false)}
       />
     </div>
   )
@@ -391,10 +389,10 @@ function TaskCard({
   onRemove: (id: string) => void
 }) {
   const concertName = task.concertId
-    ? concerts.find((c) => c.id === task.concertId)?.name
+    ? concerts.find((c) => sameConcertEdition(c.id, task.concertId))?.name ?? concertEditionLabel(task.concertId)
     : null
   const linkedDocs = documents.filter((d) =>
-    (task.documentIds ?? []).includes(d.id) || (task.concertId && d.concertId === task.concertId),
+    (task.documentIds ?? []).includes(d.id) || (task.concertId && sameConcertEdition(d.concertId, task.concertId)),
   ).slice(0, 3)
   return (
     <Card className={`border border-border bg-card transition-opacity ${task.done ? "opacity-60" : ""}`}>
@@ -482,13 +480,11 @@ function ConcertCard({
   taskCount,
   documentCount,
   onGenerate,
-  onRemove,
 }: {
   concert: Concert
   taskCount: number
   documentCount: number
   onGenerate: (c: Concert) => void
-  onRemove: (id: string) => void
 }) {
   return (
     <Card className="border border-border bg-card">
@@ -525,14 +521,6 @@ function ConcertCard({
               <Wand2 className="w-3.5 h-3.5 mr-1" />
               タスクを自動生成
             </Button>
-            <button
-              type="button"
-              onClick={() => onRemove(concert.id)}
-              className="text-muted-foreground hover:text-destructive transition-colors p-1"
-              aria-label="削除"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </CardContent>
@@ -673,23 +661,21 @@ function TaskDialog({
               <Input id="task-assignee" value={form.assignee} onChange={(e) => set("assignee", e.target.value)} placeholder="例: 山田" />
             </div>
           </div>
-          {concerts.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>演奏会（任意）</Label>
+          <div className="space-y-1.5">
+              <Label>回（任意）</Label>
               <Select
                 value={form.concertId ?? "none"}
                 onValueChange={(v) => set("concertId", v === "none" ? null : v)}
               >
-                <SelectTrigger><SelectValue placeholder="演奏会を選択" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="回を選択" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">紐付けなし</SelectItem>
+                  <SelectItem value="none">一般</SelectItem>
                   {concerts.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
           {documents.length > 0 && (
             <div className="space-y-1.5">
               <Label>関連書類（任意）</Label>
@@ -811,60 +797,6 @@ function TemplateDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>キャンセル</Button>
           <Button onClick={handleSave}>保存</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/* ─── ConcertDialog ────────────────────────────── */
-function ConcertDialog({
-  open,
-  onSave,
-  onClose,
-}: {
-  open: boolean
-  onSave: (c: Concert) => void
-  onClose: () => void
-}) {
-  const blank = (): Concert => ({ id: generateId(), name: "", date: null, venue: "", tasksGenerated: false })
-  const [form, setForm] = useState<Concert>(blank())
-
-  useEffect(() => {
-    if (open) setForm(blank())
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  const set = <K extends keyof Concert>(k: K, v: Concert[K]) => setForm((f) => ({ ...f, [k]: v }))
-
-  const handleSave = () => {
-    if (!form.name.trim()) { toast.error("演奏会名を入力してください"); return }
-    onSave({ ...form, name: form.name.trim() })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>演奏会を登録</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="concert-name">演奏会名</Label>
-            <Input id="concert-name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="例: 第10回定期演奏会" autoFocus />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="concert-date">開催日（任意）</Label>
-            <Input id="concert-date" type="date" value={form.date ?? ""} onChange={(e) => set("date", e.target.value || null)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="concert-venue">会場（任意）</Label>
-            <Input id="concert-venue" value={form.venue} onChange={(e) => set("venue", e.target.value)} placeholder="例: ○○市民ホール" />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>キャンセル</Button>
-          <Button onClick={handleSave}>登録</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

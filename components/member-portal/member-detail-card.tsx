@@ -18,6 +18,9 @@ import {
   type Member,
   type PracticeItem,
 } from "./types"
+import { ConcertIdsField } from "@/components/concert-ids-field"
+import { useConcerts } from "@/hooks/use-concerts"
+import { parseConcertIdList } from "@/lib/document-catalog"
 
 export function MemberDetailCard({
   member,
@@ -48,6 +51,10 @@ export function MemberDetailCard({
   const [status, setStatus] = useState<"member" | "extra" | "supporter">(member.status)
   const [email, setEmail] = useState(member.email)
   const [role, setRole] = useState(member.role)
+  const [concertIds, setConcertIds] = useState<string[]>(() =>
+    parseConcertIdList(member.concertIds ?? (member.joinYear ? [String(member.joinYear)] : [])),
+  )
+  const { concerts, loading: concertsLoading } = useConcerts()
   const [profile, setProfile] = useState(member.profile ?? "")
   const [instagram, setInstagram] = useState(member.instagram ?? "")
   const [isPublic, setIsPublic] = useState(member.isPublic ?? false)
@@ -93,6 +100,8 @@ export function MemberDetailCard({
       status,
       email: email.trim(),
       role: role.trim(),
+      concertIds,
+      joinYear: concertIds[0] ? Number(concertIds[0]) : 0,
       profile: profile.trim() || undefined,
       instagram: instagram.trim() || undefined,
       isPublic,
@@ -284,6 +293,10 @@ export function MemberDetailCard({
               onChange={(e) => setRole(e.target.value)}
               placeholder="例: パートリーダー"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>参加回</Label>
+            <ConcertIdsField editions={concerts} value={concertIds} onChange={setConcertIds} loading={concertsLoading} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="detail-profile">プロフィール</Label>

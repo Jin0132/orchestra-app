@@ -133,7 +133,7 @@ Google Sheets API 用のパッケージ（`googleapis`）を使うため、プ�
 
 1. **スプレッドシートの 1 行目**
    - 必ず**ヘッダー行**にしてください（列順はアプリの「スプレッドシート設定」カードに表示されているものと同じ）。
-   - 現在の並び: `id, isPublic, name, part, partRank, role, email, status, profile, instagram, extraRequestStatus, requestedPracticeIds, instrument, joinYear, attendance, photoUrl, updatedAt`
+   - 現在の並び: `id, isPublic, name, part, partRank, role, email, status, profile, instagram, extraRequestStatus, requestedPracticeIds, instrument, joinYear, concertIds, attendance, photoUrl, updatedAt`
 
 2. **データは 2 行目から**
    - 団員のデータは **2 行目以降**に 1 人 1 行で入力します。1 行目がヘッダーでないと、先頭行が団員として読み込まれたり、列がずれて正しく表示されません。

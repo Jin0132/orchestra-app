@@ -7,6 +7,7 @@ export interface Member {
   /** 管楽器用：1st / 2nd / 3rd以上 または手入力値 */
   partRank?: string
   joinYear: number
+  concertIds?: string[]
   role: string
   attendance: number
   email: string
@@ -41,7 +42,7 @@ export const PART_DISPLAY_ORDER = [
 export const DASHBOARD_STORAGE_KEY = "arsis-dashboard-data"
 export const MEMBERS_API = "/api/sheets/members"
 export const SHEET_HEADER_ROW =
-  "id,isPublic,name,part,partRank,role,email,status,profile,instagram,extraRequestStatus,requestedPracticeIds,instrument,joinYear,attendance,photoUrl,updatedAt"
+  "id,isPublic,name,part,partRank,role,email,status,profile,instagram,extraRequestStatus,requestedPracticeIds,instrument,joinYear,concertIds,attendance,photoUrl,updatedAt"
 
 /** 表示・出力用の役割順位（0=コンサートマスター, 1=その他役割あり, 2=役割なし） */
 export function getRoleRank(m: { role?: string }): number {
@@ -71,12 +72,6 @@ export const PART_RANK_OPTIONS = [
   { value: "__custom", label: "手入力" },
 ] as const
 
-export const FIRST_CONCERT_OPTIONS = [
-  { value: "", label: "選択しない" },
-  { value: "1", label: "第1回演奏会" },
-] as const
-
-/** 詳細・新規登録での写真プレビュー用サイズ（一覧タブは常に小アイコン） */
 export const PHOTO_PREVIEW_SIZES = [
   { value: 80, label: "小" },
   { value: 120, label: "中" },

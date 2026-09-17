@@ -99,7 +99,7 @@ orchestra-app-1/
 **推奨ヘッダー（1 行目）**:
 
 ```
-id,isPublic,name,part,partRank,role,email,status,profile,instagram,extraRequestStatus,requestedPracticeIds,instrument,joinYear,attendance,photoUrl,updatedAt
+id,isPublic,name,part,partRank,role,email,status,profile,instagram,extraRequestStatus,requestedPracticeIds,instrument,joinYear,concertIds,attendance,photoUrl,updatedAt
 ```
 
 読み書きは**列名ベース**です。列の順序を変えても動作しますが、ヘッダー名は揃えてください。
@@ -143,14 +143,14 @@ npm start
 
 ## 5. 主要機能
 
-- 次公演までの日数・会場・練習時間の編集
+- 次公演までの日数・会場・練習時間の編集（Concerts の第N回）
 - 練習日程の追加・削除（団員のエキストラ希望と紐付け）
 - 楽器別の座席配置、パン・ズーム、画像書き出し
 - エキストラ契約のステータス管理と CSV エクスポート（ブラウザ保存）
 - 団員の検索、パートフィルタ、新規追加、詳細編集、削除、CSV
 - 写真アップロードと `photoUrl` 更新
 - 公開フラグ `isPublic`
-- 書類台帳（検索・分類・公演紐づけ・Drive 取り込み・Docs 新規作成）
+- 書類台帳（検索・分類・一般／第N回）
 - `/mypage?id=...` による本人更新
 - PWA（本番ビルド時）
 - 任意のポータルパスワード保護

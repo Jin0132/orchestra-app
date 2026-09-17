@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Users,
@@ -29,8 +36,9 @@ import { format, differenceInDays, parseISO } from "date-fns"
 import { ja } from "date-fns/locale"
 import { toast } from "sonner"
 import { useAppData, type PracticeItem, type MemberNotice } from "@/hooks/use-app-data"
+import { useConcerts } from "@/hooks/use-concerts"
 import { generateId } from "@/lib/task-store"
-import { useEffect } from "react"
+import { pickUpcomingConcert, concertEditionLabel, parseConcertNumber, type ConcertEdition } from "@/lib/document-catalog"
 
 export function Dashboard({
   onNavigateToMembers,
@@ -42,7 +50,30 @@ export function Dashboard({
   onNavigateToDocuments?: () => void
 }) {
   const { data, loading, saving, error, update } = useAppData()
+  const { concerts, addNext, updateEdition } = useConcerts()
   const [extrasCount, setExtrasCount] = useState(0)
+  const upcoming = pickUpcomingConcert(concerts)
+  const [editId, setEditId] = useState("")
+  const [draft, setDraft] = useState<Partial<ConcertEdition>>({})
+  const pendingPatch = useRef<Partial<ConcertEdition>>({})
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (editId && concerts.some((c) => c.id === editId)) return
+    const nextId = upcoming?.id ?? concerts[0]?.id ?? ""
+    if (nextId) setEditId(nextId)
+  }, [concerts, upcoming?.id, editId])
+
+  useEffect(() => {
+    setDraft({})
+    pendingPatch.current = {}
+  }, [editId])
+
+  const editing = concerts.find((c) => c.id === editId) ?? upcoming ?? concerts[0] ?? null
+  const displayDate = (draft.date !== undefined ? draft.date : editing?.date) || data.concert.nextConcertDate
+  const displayHall = (draft.hall !== undefined ? draft.hall : editing?.hall) || data.concert.hall
+  const displayRehearsal = (draft.rehearsalTime !== undefined ? draft.rehearsalTime : editing?.rehearsalTime) || data.concert.rehearsalTime
+  const displayConcertTime = (draft.concertTime !== undefined ? draft.concertTime : editing?.concertTime) || data.concert.concertTime
 
   useEffect(() => {
     fetch("/api/sheets/members", { cache: "no-store" })
@@ -54,10 +85,34 @@ export function Dashboard({
   }, [])
 
   const updateConcert = useCallback(
-    (patch: Partial<typeof data.concert>) => {
-      update({ concert: { ...data.concert, ...patch } })
+    (patch: Partial<ConcertEdition>) => {
+      setDraft((d) => ({ ...d, ...patch }))
+      pendingPatch.current = { ...pendingPatch.current, ...patch }
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(() => {
+        const merged = pendingPatch.current
+        pendingPatch.current = {}
+        const apply = async () => {
+          let id = editing?.id
+          if (!id) {
+            const created = await addNext("1")
+            id = created.id
+            setEditId(id)
+          }
+          const next = await updateEdition(id, merged)
+          update({
+            concert: {
+              nextConcertDate: next.date ?? null,
+              hall: next.hall ?? "",
+              rehearsalTime: next.rehearsalTime ?? "",
+              concertTime: next.concertTime ?? "",
+            },
+          })
+        }
+        void apply().catch((e) => toast.error(e instanceof Error ? e.message : "公演情報を保存できませんでした"))
+      }, 450)
     },
-    [data.concert, update],
+    [editing?.id, addNext, updateEdition, update],
   )
 
   const addPractice = useCallback(
@@ -78,9 +133,9 @@ export function Dashboard({
     [data.practices, update],
   )
 
-  const nextConcertDays = data.concert.nextConcertDate
+  const nextConcertDays = displayDate
     ? (() => {
-        try { return differenceInDays(parseISO(data.concert.nextConcertDate!), new Date()) }
+        try { return differenceInDays(parseISO(displayDate), new Date()) }
         catch { return null }
       })()
     : null
@@ -93,24 +148,48 @@ export function Dashboard({
   /* 公演情報ポップオーバー（入力済み・未入力共通） */
   const ConcertPopoverContent = (
     <PopoverContent className="w-80 p-5" align="start" sideOffset={8}>
-      <p className="text-sm font-semibold text-foreground mb-4">公演情報</p>
+      <p className="text-sm font-semibold text-foreground mb-4">次回公演</p>
       <div className="flex flex-col gap-4">
         <div className="space-y-1.5">
-          <Label className="text-xs">次回公演日</Label>
+          <Label className="text-xs">回</Label>
+          <Select
+            value={editing?.id ?? "none"}
+            onValueChange={(v) => {
+              if (v === "__add") {
+                const n = Math.max(0, ...concerts.map((c) => parseConcertNumber(c.id) ?? 0)) + 1
+                void addNext(String(n)).then((e) => setEditId(e.id)).catch((err) => toast.error(err instanceof Error ? err.message : "追加できませんでした"))
+                return
+              }
+              setEditId(v)
+            }}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="回を選ぶ" />
+            </SelectTrigger>
+            <SelectContent>
+              {concerts.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name || concertEditionLabel(c.id)}</SelectItem>
+              ))}
+              <SelectItem value="__add">第{(Math.max(0, ...concerts.map((c) => parseConcertNumber(c.id) ?? 0)) + 1)}回を追加</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">公演日</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start text-left font-normal text-sm h-9">
                 <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                {data.concert.nextConcertDate
-                  ? format(parseISO(data.concert.nextConcertDate), "yyyy年M月d日(E)", { locale: ja })
+                {displayDate
+                  ? format(parseISO(displayDate), "yyyy年M月d日(E)", { locale: ja })
                   : "日付を選択"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={data.concert.nextConcertDate ? parseISO(data.concert.nextConcertDate) : undefined}
-                onSelect={(d) => updateConcert({ nextConcertDate: d ? format(d, "yyyy-MM-dd") : null })}
+                selected={displayDate ? parseISO(displayDate) : undefined}
+                onSelect={(d) => updateConcert({ date: d ? format(d, "yyyy-MM-dd") : null })}
                 locale={ja}
               />
             </PopoverContent>
@@ -118,16 +197,16 @@ export function Dashboard({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pop-hall" className="text-xs">公演ホール</Label>
-          <Input id="pop-hall" className="h-9 text-sm" value={data.concert.hall} onChange={(e) => updateConcert({ hall: e.target.value })} placeholder="例: ○○市民ホール 大ホール" />
+          <Input id="pop-hall" className="h-9 text-sm" value={displayHall} onChange={(e) => updateConcert({ hall: e.target.value })} placeholder="例: ○○市民ホール 大ホール" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="pop-rehearsal" className="text-xs">ゲネプロ時間</Label>
-            <Input id="pop-rehearsal" className="h-9 text-sm" value={data.concert.rehearsalTime} onChange={(e) => updateConcert({ rehearsalTime: e.target.value })} placeholder="13:00–15:00" />
+            <Input id="pop-rehearsal" className="h-9 text-sm" value={displayRehearsal} onChange={(e) => updateConcert({ rehearsalTime: e.target.value })} placeholder="13:00–15:00" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pop-concert" className="text-xs">本番時間</Label>
-            <Input id="pop-concert" className="h-9 text-sm" value={data.concert.concertTime} onChange={(e) => updateConcert({ concertTime: e.target.value })} placeholder="16:00 開演" />
+            <Input id="pop-concert" className="h-9 text-sm" value={displayConcertTime} onChange={(e) => updateConcert({ concertTime: e.target.value })} placeholder="16:00 開演" />
           </div>
         </div>
       </div>

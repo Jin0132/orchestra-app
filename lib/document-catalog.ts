@@ -138,6 +138,10 @@ export function parseTags(raw: string): string[] {
 export type ConcertEdition = {
   id: string
   name: string
+  date?: string | null
+  hall?: string
+  rehearsalTime?: string
+  concertTime?: string
 }
 
 const GENERAL_CONCERT_VALUES = new Set(["", "一般", "none", "n/a", "na", "general", "all"])
@@ -190,30 +194,70 @@ export function sameConcertEdition(a: string | null | undefined, b: string | nul
   return na === nb
 }
 
+function preferText(a?: string | null, b?: string | null): string {
+  return (a ?? "").trim() || (b ?? "").trim()
+}
+
 export function mergeConcertEditions(editions: ConcertEdition[]): ConcertEdition[] {
-  const map = new Map<string, string>()
+  const map = new Map<string, ConcertEdition>()
   for (const e of editions) {
     const key = concertEditionId(e.id) ?? concertEditionId(e.name) ?? normalizeConcertId(e.id)
     if (!key) continue
     const rawName = (e.name ?? "").trim()
     const bareNumber = Boolean(concertEditionId(rawName) && /^(第\s*\d+\s*回|\d+)$/.test(toHalfWidthDigits(rawName)))
-    const name = rawName && rawName !== e.id && rawName !== key && !bareNumber
-      ? rawName
-      : concertEditionLabel(key)
-    if (!map.has(key)) map.set(key, name)
+    const fallbackName = concertEditionLabel(key)
+    const name = rawName && rawName !== e.id && rawName !== key && !bareNumber ? rawName : fallbackName
+    const prev = map.get(key)
+    map.set(key, {
+      id: key,
+      name: prev && prev.name !== fallbackName ? prev.name : name,
+      date: preferText(prev?.date, e.date) || null,
+      hall: preferText(prev?.hall, e.hall),
+      rehearsalTime: preferText(prev?.rehearsalTime, e.rehearsalTime),
+      concertTime: preferText(prev?.concertTime, e.concertTime),
+    })
   }
   const numeric = [...map.keys()].filter((k) => parseConcertNumber(k) != null).sort((a, b) => Number(a) - Number(b))
   const other = [...map.keys()].filter((k) => parseConcertNumber(k) == null).sort()
-  return [...numeric, ...other].map((id) => ({ id, name: map.get(id)! }))
+  return [...numeric, ...other].map((id) => map.get(id)!)
 }
 
-export function harvestConcertEditions(documents: { concertId?: string | null }[]): ConcertEdition[] {
+export function harvestConcertEditions(records: { concertId?: string | null }[]): ConcertEdition[] {
   return mergeConcertEditions(
-    documents.flatMap((d) => {
+    records.flatMap((d) => {
       const id = concertEditionId(d.concertId)
       return id ? [{ id, name: concertEditionLabel(id) }] : []
     }),
   )
+}
+
+export function parseConcertIdList(raw: string | string[] | null | undefined): string[] {
+  const parts = Array.isArray(raw)
+    ? raw
+    : String(raw ?? "").split(/[,、\s]+/)
+  const ids = parts.map((p) => concertEditionId(p)).filter((id): id is string => Boolean(id))
+  return [...new Set(ids)].sort((a, b) => Number(a) - Number(b))
+}
+
+export function concertIdListCell(ids: string[]): string {
+  return parseConcertIdList(ids).join(",")
+}
+
+/** joinYear 列は回数。西暦と紛らわしい 1900 以上は無視する */
+export function joinYearAsEditionId(raw: string | number | null | undefined): string | null {
+  const n = typeof raw === "number" ? raw : parseConcertNumber(raw)
+  if (n == null || n >= 1900) return null
+  return String(n)
+}
+
+export function pickUpcomingConcert(
+  editions: ConcertEdition[],
+  today = new Date().toISOString().slice(0, 10),
+): ConcertEdition | null {
+  const dated = editions
+    .filter((e) => Boolean(e.date?.trim()))
+    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
+  return dated.find((e) => (e.date ?? "") >= today) ?? dated.at(-1) ?? null
 }
 
 export type ParsedGoogleResource = {

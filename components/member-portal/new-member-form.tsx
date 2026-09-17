@@ -8,11 +8,12 @@ import { Switch } from "@/components/ui/switch"
 import {
   WIND_PARTS,
   PART_RANK_OPTIONS,
-  FIRST_CONCERT_OPTIONS,
   PHOTO_PREVIEW_SIZES,
   type Member,
 } from "./types"
 import { PhotoFilePreview } from "./photo-file-preview"
+import { ConcertIdsField } from "@/components/concert-ids-field"
+import { useConcerts } from "@/hooks/use-concerts"
 
 export function NewMemberForm({
   defaultStatus = "member",
@@ -32,7 +33,8 @@ export function NewMemberForm({
   const [instagram, setInstagram] = useState("")
   const [isPublic, setIsPublic] = useState(false)
   const [instrument, setInstrument] = useState("")
-  const [joinYear, setJoinYear] = useState<string>("")
+  const [concertIds, setConcertIds] = useState<string[]>([])
+  const { concerts, loading: concertsLoading } = useConcerts()
   const [attendance, setAttendance] = useState<string>("")
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreviewSize, setPhotoPreviewSize] = useState(120)
@@ -64,7 +66,7 @@ export function NewMemberForm({
       window.alert("パートを選択してください。")
       return
     }
-    const year = parseInt(joinYear || "0", 10)
+    const year = concertIds[0] ? Number(concertIds[0]) : 0
     const att = parseInt(attendance || "0", 10)
     let photoUrl: string | undefined
     if (photoFile) {
@@ -97,6 +99,7 @@ export function NewMemberForm({
       part: part.trim(),
       partRank: partRankValue || undefined,
       joinYear: isNaN(year) ? 0 : year,
+      concertIds,
       role: role.trim(),
       status,
       attendance: isNaN(att) ? 0 : Math.max(0, Math.min(100, att)),
@@ -117,7 +120,7 @@ export function NewMemberForm({
     setInstagram("")
     setIsPublic(false)
     setInstrument("")
-    setJoinYear("")
+    setConcertIds([])
     setAttendance("")
     setPhotoFile(null)
   }
@@ -238,22 +241,10 @@ export function NewMemberForm({
           />
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="new-member-joinYear">初回参加回（任意）</Label>
-          <select
-            id="new-member-joinYear"
-            className="h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground"
-            value={joinYear}
-            onChange={(e) => setJoinYear(e.target.value)}
-          >
-            {FIRST_CONCERT_OPTIONS.map((opt) => (
-              <option key={opt.value || "none"} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="space-y-1.5">
+        <Label>参加回</Label>
+            <ConcertIdsField editions={concerts} value={concertIds} onChange={setConcertIds} loading={concertsLoading} />
+        <p className="text-[11px] text-muted-foreground">出演した回にチェックします。共通の団員情報そのものは回数に縛られません。</p>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="new-member-profile">プロフィール（任意）</Label>

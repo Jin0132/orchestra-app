@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Sidebar, BottomNav, type Page } from "@/components/sidebar"
 import { Dashboard } from "@/components/dashboard"
 import { SeatingChart } from "@/components/seating-chart"
-import { Contracts } from "@/components/contracts"
 import { MemberPortal } from "@/components/member-portal"
 import { Tasks } from "@/components/tasks"
 import { Documents } from "@/components/documents"
@@ -17,8 +16,14 @@ export default function OrchestraApp() {
   const [mode, setMode] = useState<ViewMode>("member")
   const [loginOpen, setLoginOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState<Page>("dashboard")
+  const [portalTab, setPortalTab] = useState<"members" | "extras">("members")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const auth = usePortalAuth()
+
+  const go = (page: Page) => {
+    if (page === "portal") setPortalTab("members")
+    setCurrentPage(page)
+  }
 
   const selectMode = (next: ViewMode) => {
     if (next === mode) return
@@ -40,8 +45,8 @@ export default function OrchestraApp() {
       <div className="flex flex-1 min-h-0">
         {mode === "ops" && (
           <Sidebar
-            currentPage={currentPage}
-            onNavigate={setCurrentPage}
+            currentPage={currentPage === "seating" || currentPage === "contracts" || currentPage === "tasks" ? "dashboard" : currentPage}
+            onNavigate={go}
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed((p) => !p)}
           />
@@ -61,23 +66,37 @@ export default function OrchestraApp() {
               <>
                 {currentPage === "dashboard" && (
                   <Dashboard
-                    onNavigateToMembers={() => setCurrentPage("portal")}
+                    onNavigateToMembers={() => {
+                      setPortalTab("extras")
+                      setCurrentPage("portal")
+                    }}
                     onNavigateToTasks={() => setCurrentPage("tasks")}
                     onNavigateToDocuments={() => setCurrentPage("documents")}
+                    onNavigateToSeating={() => setCurrentPage("seating")}
                   />
                 )}
                 {currentPage === "tasks" && <Tasks />}
                 {currentPage === "documents" && <Documents />}
-                {currentPage === "seating" && <SeatingChart />}
-                {currentPage === "contracts" && <Contracts />}
-                {currentPage === "portal" && <MemberPortal />}
+                {currentPage === "seating" && (
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage("dashboard")}
+                      className="self-start text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      ← ホーム
+                    </button>
+                    <SeatingChart />
+                  </div>
+                )}
+                {currentPage === "portal" && <MemberPortal initialTab={portalTab} />}
               </>
             )}
           </div>
         </main>
       </div>
 
-      {mode === "ops" && <BottomNav currentPage={currentPage} onNavigate={setCurrentPage} />}
+      {mode === "ops" && <BottomNav currentPage={currentPage === "seating" || currentPage === "contracts" || currentPage === "tasks" ? "dashboard" : currentPage} onNavigate={go} />}
 
       <OpsLoginDialog
         open={loginOpen}

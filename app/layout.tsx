@@ -9,7 +9,7 @@ const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const _notoSansJP = Noto_Sans_JP({ subsets: ["latin"], variable: "--font-noto-sans-jp" });
 
 const APP_NAME = "Arsis Portal"
-const APP_DESCRIPTION = "Arsis Chamber Orchestra 運営ポータル。セッティング表、エキストラ契約、団員ポータルを一元管理。"
+const APP_DESCRIPTION = "Arsis Chamber Orchestra 運営ポータル。書類、団員、公演を一元管理。"
 
 export const metadata: Metadata = {
   applicationName: APP_NAME,

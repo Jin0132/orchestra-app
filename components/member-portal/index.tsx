@@ -26,12 +26,13 @@ import {
 } from "./types"
 import { NewMemberForm } from "./new-member-form"
 import { MemberDetailCard } from "./member-detail-card"
+import { Contracts } from "@/components/contracts"
 
 const initialMembers: Member[] = []
 
-export function MemberPortal() {
+export function MemberPortal({ initialTab = "members" }: { initialTab?: "members" | "extras" }) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeTab, setActiveTab] = useState("members")
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [memberState, setMemberState] = useState<Member[]>(initialMembers)
   const [instrumentFilter, setInstrumentFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -39,6 +40,10 @@ export function MemberPortal() {
   const [practiceSchedule, setPracticeSchedule] = useState<PracticeItem[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
   const [membersError, setMembersError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
 
   const refreshPracticeSchedule = useCallback(() => {
     setPracticeSchedule(loadPracticeSchedule())
@@ -248,7 +253,7 @@ export function MemberPortal() {
         </DialogContent>
       </Dialog>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v === "extras" ? "extras" : "members")}>
         <TabsList className="bg-secondary/60 border border-border">
           <TabsTrigger value="members" className="data-[state=active]:bg-card data-[state=active]:text-foreground flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" />
@@ -472,6 +477,7 @@ export function MemberPortal() {
                 )
               })
             )}
+            <Contracts embedded />
           </div>
         </TabsContent>
       </Tabs>

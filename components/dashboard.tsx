@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   Megaphone,
+  Grid3X3,
 } from "lucide-react"
 import { TasksSummary } from "@/components/tasks"
 import { DocumentsSummary } from "@/components/documents"
@@ -44,10 +45,12 @@ export function Dashboard({
   onNavigateToMembers,
   onNavigateToTasks,
   onNavigateToDocuments,
+  onNavigateToSeating,
 }: {
   onNavigateToMembers?: () => void
   onNavigateToTasks?: () => void
   onNavigateToDocuments?: () => void
+  onNavigateToSeating?: () => void
 }) {
   const { data, loading, saving, error, update } = useAppData()
   const { concerts, addNext, updateEdition } = useConcerts()
@@ -318,7 +321,7 @@ export function Dashboard({
                 <Users className="w-4 h-4 text-primary" />
                 エキストラ管理
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">登録・依頼状況は団員情報ページで管理します。</p>
+              <p className="text-xs text-muted-foreground mt-1">名簿と契約は団員タブのエキストラから見ます。</p>
             </CardHeader>
             <CardContent className="px-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -327,12 +330,25 @@ export function Dashboard({
                 {onNavigateToMembers && (
                   <Button type="button" size="sm" className="ml-auto" onClick={onNavigateToMembers}>
                     <Users className="w-4 h-4 mr-2" />
-                    団員情報で管理
+                    エキストラを見る
                   </Button>
                 )}
               </div>
             </CardContent>
           </Card>
+
+          {onNavigateToSeating && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={onNavigateToSeating}
+            >
+              <Grid3X3 className="w-3.5 h-3.5 mr-1" />
+              座席
+            </Button>
+          )}
         </div>
       </div>
 

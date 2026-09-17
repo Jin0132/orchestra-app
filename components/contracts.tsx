@@ -73,7 +73,7 @@ function escapeCsv(val: string | number): string {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
 }
 
-export function Contracts() {
+export function Contracts({ embedded = false }: { embedded?: boolean }) {
   const { data: appData, loading, saving, update } = useAppData()
   const { concerts: editions } = useConcerts()
   const contracts = (appData.contracts as unknown as Contract[]) ?? []
@@ -211,13 +211,22 @@ export function Contracts() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={embedded ? "flex flex-col gap-4" : "flex flex-col gap-6"}>
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">エキストラ契約管理</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            エキストラ奏者との契約状況を一元管理（Google Sheets で全端末共有）
-          </p>
+          {embedded ? (
+            <>
+              <h3 className="text-lg font-semibold tracking-tight text-foreground">契約</h3>
+              <p className="text-sm text-muted-foreground mt-1">エキストラ奏者との契約状況</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold tracking-tight text-foreground">エキストラ契約管理</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                エキストラ奏者との契約状況を一元管理（Google Sheets で全端末共有）
+              </p>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}

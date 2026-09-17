@@ -3,8 +3,6 @@
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
-  Grid3X3,
-  FileText,
   Users,
   FolderOpen,
   ChevronLeft,
@@ -14,17 +12,15 @@ import { Button } from "@/components/ui/button"
 
 export type Page = "dashboard" | "seating" | "contracts" | "portal" | "tasks" | "documents"
 
-/** ボトムナビ用（ホーム＝dashboard を中央に配置。タスクはナビ非表示） */
+/** ボトムナビ用（ホーム＝dashboard を中央。座席・契約はタブに置かない） */
 export const navItems: { id: Page; label: string; mobileLabel: string; icon: React.ElementType }[] = [
-  { id: "documents",  label: "書類",            mobileLabel: "書類",      icon: FolderOpen },
-  { id: "seating",    label: "セッティング表",  mobileLabel: "座席",      icon: Grid3X3 },
-  { id: "dashboard",  label: "ダッシュボード",  mobileLabel: "ホーム",    icon: LayoutDashboard },
-  { id: "contracts",  label: "エキストラ契約",  mobileLabel: "契約",      icon: FileText },
-  { id: "portal",     label: "団員情報",        mobileLabel: "団員",      icon: Users },
+  { id: "documents", label: "書類", mobileLabel: "書類", icon: FolderOpen },
+  { id: "dashboard", label: "ホーム", mobileLabel: "ホーム", icon: LayoutDashboard },
+  { id: "portal", label: "団員", mobileLabel: "団員", icon: Users },
 ]
 
-/** PC サイドバー用の表示順（ダッシュボード先頭。タスクはホームの直近タスクから遷移） */
-const sidebarOrder: Page[] = ["dashboard", "documents", "seating", "contracts", "portal"]
+/** PC サイドバー用の表示順 */
+const sidebarOrder: Page[] = ["dashboard", "documents", "portal"]
 const sidebarItems = sidebarOrder.map((id) => navItems.find((n) => n.id === id)!)
 
 /* ─── PC サイドバー ─────────────────────────────────── */

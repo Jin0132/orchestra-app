@@ -245,40 +245,40 @@ function DocsTable({
   onToggleMember?: (doc: PortalDocument, visible: boolean) => void
 }) {
   return (
-    <table className="w-full">
+    <table className="w-full table-fixed">
       <thead>
         <tr className="border-y border-border bg-secondary/40">
-          <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <th className="text-left px-3 sm:px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {memberColumn ? "書類" : "フォルダ"}
           </th>
-          <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <th className="hidden sm:table-cell text-left px-3 py-3 w-24 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             形式
           </th>
           {memberColumn && (
-            <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+            <th className="text-center px-1.5 sm:px-3 py-3 w-12 sm:w-14 text-xs font-medium text-muted-foreground uppercase tracking-wider">
               団員
             </th>
           )}
-          <th className="px-3 py-3 w-12" />
+          <th className="px-1.5 sm:px-3 py-3 w-9 sm:w-12" />
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
         {docs.map((doc) => (
           <tr key={doc.id} className="hover:bg-secondary/30 transition-colors">
-            <td className="px-4 py-3">
+            <td className="px-3 sm:px-4 py-3 min-w-0">
               <button
                 type="button"
                 onClick={() => onOpen(doc)}
-                className="text-sm font-medium text-foreground text-left hover:underline truncate max-w-full"
+                className="block w-full text-sm font-medium text-foreground text-left hover:underline truncate"
               >
                 {doc.title}
               </button>
             </td>
-            <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
+            <td className="hidden sm:table-cell px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
               {KIND_LABEL[doc.kind]}
             </td>
             {memberColumn && onToggleMember && (
-              <td className="px-3 py-3">
+              <td className="px-1.5 sm:px-3 py-3 text-center">
                 <Switch
                   checked={doc.memberVisible}
                   onCheckedChange={(checked) => onToggleMember(doc, checked)}
@@ -286,7 +286,7 @@ function DocsTable({
                 />
               </td>
             )}
-            <td className="px-3 py-3 text-right">
+            <td className="px-1.5 sm:px-3 py-3 text-right">
               <button
                 type="button"
                 onClick={() => onDetail(doc)}
@@ -787,7 +787,7 @@ export function Documents() {
       ) : (
         <>
           {kind !== "folder" && (
-            <Card className="border border-border bg-card">
+            <Card className="border border-border bg-card overflow-hidden">
               <CardHeader className="pb-0">
                 <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
                   書類一覧
@@ -814,7 +814,7 @@ export function Documents() {
             </Card>
           )}
           {(kind === "all" || kind === "folder") && (
-            <Card className="border border-border bg-card">
+            <Card className="border border-border bg-card overflow-hidden">
               <CardHeader className="pb-0">
                 <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
                   フォルダ

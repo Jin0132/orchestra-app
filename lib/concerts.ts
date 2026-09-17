@@ -178,9 +178,9 @@ async function loadConcertSheetTarget(): Promise<ConcertSheetTarget> {
     spreadsheetId,
     range: `'${CONCERT_SHEET_PREFERRED}'!A1:F1`,
     valueInputOption: "RAW",
-    requestBody: { values: [CONCERT_HEADERS] },
+    requestBody: { values: [[...CONCERT_HEADERS]] },
   })
-  return { sheets, spreadsheetId, title: CONCERT_SHEET_PREFERRED, hasHeader: true, rows: [CONCERT_HEADERS] }
+  return { sheets, spreadsheetId, title: CONCERT_SHEET_PREFERRED, hasHeader: true, rows: [[...CONCERT_HEADERS]] }
 }
 
 function editionRow(edition: ConcertEdition, hasHeader: boolean): string[] {

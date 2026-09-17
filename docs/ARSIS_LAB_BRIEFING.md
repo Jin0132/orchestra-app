@@ -83,7 +83,7 @@ Lab は Portal の代わりに団員・会計・書類を管理しない。
 
 ## 3. 用語
 
-- **ポータル / Arsis Portal**: 内部運営（ダッシュボード、タスク、セッティング表タブ、契約、団員、書類台帳、マイページ）。公開サイトではない。
+- **ポータル / Arsis Portal**: 内部運営（ホーム、書類、団員。座席はホームの小ボタン、契約は団員のエキストラ）。公開サイトではない。
 - **setting-app**: セッティング表の新実装。localStorage。Portal 内タブより高機能。統合予定。
 - **公開サイト (`arsis-site`)**: 対外サイト。マスタブックの `Article` / `config`。Portal は読まない。
 - **マスタブック**: スプレッドシート『Arsis Chamber Orchestra』。Portal / 公開サイトの運用データ正本。
@@ -104,7 +104,7 @@ Portal ── orchestra-app-1 ── マスタブック
   │                 ├── Article / config … 公開サイト用（Portal 未使用）
   │                 ├── Drive『Arsis Chamber Orchestra』
   │                 ├── Docs『ArsisCO 運営ガイド』
-  │                 └── セッティング表タブ（localStorage・seating-state-v1）
+  │                 └── セッティング表（ホームの小ボタン。localStorage・seating-state-v1）
   │                       ↓ 将来
 setting-app ── セッティング表（localStorage・orchestra-setting-configs-v2）
                 → Portal 内タブへ統合予定

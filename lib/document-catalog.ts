@@ -250,14 +250,28 @@ export function joinYearAsEditionId(raw: string | number | null | undefined): st
   return String(n)
 }
 
+/**
+ * 次回公演:
+ * 1. 公演日が今日以降の回があれば、いちばん近いもの
+ * 2. なければ、終えていない回（日付なし、または今日以降）のうち番号が最大
+ * 終えた回は公演日を過去日で入れる。日付が無い小さい番号は、より大きい回がある時点で前回とみなす。
+ */
 export function pickUpcomingConcert(
   editions: ConcertEdition[],
   today = new Date().toISOString().slice(0, 10),
 ): ConcertEdition | null {
-  const dated = editions
-    .filter((e) => Boolean(e.date?.trim()))
+  if (editions.length === 0) return null
+  const future = editions
+    .filter((e) => Boolean(e.date?.trim()) && (e.date ?? "") >= today)
     .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
-  return dated.find((e) => (e.date ?? "") >= today) ?? dated.at(-1) ?? null
+  if (future[0]) return future[0]
+
+  const open = editions.filter((e) => {
+    const d = e.date?.trim()
+    return !d || d >= today
+  })
+  if (open.length === 0) return null
+  return [...open].sort((a, b) => Number(b.id) - Number(a.id))[0] ?? null
 }
 
 export type ParsedGoogleResource = {

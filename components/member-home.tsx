@@ -72,8 +72,7 @@ export function MemberHome() {
   const { data, loading, error } = useAppData()
   const { documents, loading: docsLoading } = useDocuments()
   const { concerts } = useConcerts()
-  const upcomingDated = pickUpcomingConcert(concerts)
-  const upcoming = upcomingDated ?? concerts[0] ?? null
+  const upcoming = pickUpcomingConcert(concerts)
   const nextDate = upcoming?.date || data.concert.nextConcertDate
   const hall = upcoming?.hall || data.concert.hall
   const rehearsalTime = upcoming?.rehearsalTime || data.concert.rehearsalTime

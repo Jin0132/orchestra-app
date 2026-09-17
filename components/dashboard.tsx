@@ -63,7 +63,7 @@ export function Dashboard({
 
   useEffect(() => {
     if (editId && concerts.some((c) => c.id === editId)) return
-    const nextId = upcoming?.id ?? concerts[0]?.id ?? ""
+    const nextId = upcoming?.id ?? ""
     if (nextId) setEditId(nextId)
   }, [concerts, upcoming?.id, editId])
 
@@ -72,7 +72,7 @@ export function Dashboard({
     pendingPatch.current = {}
   }, [editId])
 
-  const editing = concerts.find((c) => c.id === editId) ?? upcoming ?? concerts[0] ?? null
+  const editing = concerts.find((c) => c.id === editId) ?? upcoming ?? null
   const displayDate = (draft.date !== undefined ? draft.date : editing?.date) || data.concert.nextConcertDate
   const displayHall = (draft.hall !== undefined ? draft.hall : editing?.hall) || data.concert.hall
   const displayRehearsal = (draft.rehearsalTime !== undefined ? draft.rehearsalTime : editing?.rehearsalTime) || data.concert.rehearsalTime

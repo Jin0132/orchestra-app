@@ -24,6 +24,7 @@ import {
 } from "@/lib/documents"
 import { loadAllConcertEditions } from "@/lib/concerts"
 import { normalizeConcertId } from "@/lib/document-catalog"
+import { isMemberHomeVisible, isMemberShareBlocked } from "@/lib/member-share"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -60,7 +61,13 @@ function normalizeInput(input: DocumentInput, current?: PortalDocument): PortalD
     owner: (input.owner ?? current?.owner ?? "").trim(),
     fileId: (input.fileId ?? current?.fileId ?? parsed?.fileId ?? "").trim(),
     updatedAt: nowYmdHm(),
-    memberVisible: input.memberVisible ?? current?.memberVisible ?? false,
+    memberVisible: isMemberShareBlocked({
+      id: current?.id ?? input.id,
+      fileId: (input.fileId ?? current?.fileId ?? parsed?.fileId ?? "").trim(),
+      title: (input.title ?? current?.title ?? "").trim() || "(無題)",
+    })
+      ? false
+      : (input.memberVisible ?? current?.memberVisible ?? false),
   }
 }
 
@@ -75,7 +82,7 @@ export async function GET(request: NextRequest) {
     const loaded = await loadDocumentsSheet()
     const { rows, headerRow } = ops ? await ensureDocumentHeaderColumns(loaded) : loaded
     const documents = listPortalDocuments(rows, headerRow)
-    const visible = ops ? documents : documents.filter((d) => d.memberVisible && d.status !== "archived" && d.kind !== "folder")
+    const visible = ops ? documents : documents.filter(isMemberHomeVisible)
     const id = request.nextUrl.searchParams.get("id")?.trim()
     if (id) {
       const one = visible.find((d) => d.id === id)

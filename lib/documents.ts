@@ -1,4 +1,5 @@
 import { getSheetsClient, normalizeHeaderName, toA1Column } from "@/lib/sheets"
+import { applyMemberSharePolicy } from "@/lib/member-share"
 import {
   DOCUMENT_HEADERS,
   isDocumentCategory,
@@ -166,6 +167,7 @@ export function listPortalDocuments(rows: unknown[][], headerRow: string[]): Por
     .slice(1)
     .map((values) => rowToPortalDocument(rowToDocumentRow(headerRow, Array.isArray(values) ? values : [])))
     .filter((d): d is PortalDocument => d != null)
+    .map(applyMemberSharePolicy)
 }
 
 export function lastColumnLetter(headerRow: string[], values: string[]) {

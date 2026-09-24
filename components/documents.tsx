@@ -55,7 +55,9 @@ import {
   type DocumentKind,
   type DocumentStatus,
   type PortalDocument,
+  concertEditionId,
 } from "@/lib/document-catalog"
+import { canShowMemberShareToggle, isGakufuName, isMemberShareBlocked } from "@/lib/member-share"
 
 type ViewerEntry = { id: string; name: string }
 
@@ -279,11 +281,13 @@ function DocsTable({
             </td>
             {memberColumn && onToggleMember && (
               <td className="px-1.5 sm:px-3 py-3 text-center">
-                <Switch
-                  checked={doc.memberVisible}
-                  onCheckedChange={(checked) => onToggleMember(doc, checked)}
-                  aria-label={`${doc.title}を団員ホームに見せる`}
-                />
+                {canShowMemberShareToggle(doc) ? (
+                  <Switch
+                    checked={doc.memberVisible}
+                    onCheckedChange={(checked) => onToggleMember(doc, checked)}
+                    aria-label={`${doc.title}を団員ホームに見せる`}
+                  />
+                ) : null}
               </td>
             )}
             <td className="px-1.5 sm:px-3 py-3 text-right">
@@ -547,6 +551,7 @@ export function Documents() {
   }
 
   const setMemberVisible = async (doc: PortalDocument, visible: boolean) => {
+    if (isMemberShareBlocked(doc) && visible) return
     if (doc.memberVisible === visible) return
     const next = { ...doc, memberVisible: visible }
     setDocuments((prev) => prev.map((d) => (d.id === doc.id ? next : d)))
@@ -571,6 +576,9 @@ export function Documents() {
     file: { id: string; name: string; kind: DocumentKind; url?: string },
     visible: boolean,
   ) => {
+    if (!canShowMemberShareToggle({ ...file, title: file.name, fileId: file.id, parentFolderName: currentView?.name })) {
+      return
+    }
     const existing = byFileId.get(file.id)
     if (existing) {
       await setMemberVisible(existing, visible)
@@ -590,6 +598,7 @@ export function Documents() {
             fileId: file.id,
             category: "その他",
             status: "active",
+            concertId: concertEditionId(currentView?.name),
             memberVisible: true,
           },
         }),
@@ -755,7 +764,12 @@ export function Documents() {
                         <span className="text-sm truncate flex-1">{file.name}</span>
                         <span className="text-xs text-muted-foreground shrink-0">{KIND_LABEL[file.kind]}</span>
                       </button>
-                      {file.kind !== "folder" && (
+                      {canShowMemberShareToggle({
+                        title: file.name,
+                        fileId: file.id,
+                        kind: file.kind,
+                        parentFolderName: currentView?.name,
+                      }) && (
                         <Switch
                           checked={byFileId.get(file.id)?.memberVisible ?? false}
                           disabled={importingId === file.id}
@@ -947,10 +961,12 @@ export function Documents() {
               <Label htmlFor="doc-tags">タグ</Label>
               <Input id="doc-tags" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="春公演, 会場" />
             </div>
-            {form.kind === "folder" ? (
+            {form.kind === "folder" && !isGakufuName(form.title) ? (
               <p className="text-sm text-muted-foreground">
-                フォルダそのものは団員ホームに出しません。中を開いて、ファイルごとに掲載を選んでください。
+                フォルダそのものは団員ホームに出しません。第N回の中の、題名がちょうど「楽譜」のものだけ掲載できます。
               </p>
+            ) : isMemberShareBlocked({ id: editing?.id, fileId: form.fileId, title: form.title }) ? (
+              <p className="text-sm text-muted-foreground">この書類は団員ホームに出せません。</p>
             ) : (
               <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
                 <span className="text-sm">団員ホームに見せる</span>

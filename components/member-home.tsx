@@ -8,6 +8,7 @@ import { useAppData } from "@/hooks/use-app-data"
 import { useConcerts } from "@/hooks/use-concerts"
 import { useDocuments } from "@/hooks/use-documents"
 import { pickUpcomingConcert, concertEditionLabel } from "@/lib/document-catalog"
+import { isMemberHomeVisible } from "@/lib/member-share"
 
 function displayOrPending(value: string | null | undefined) {
   const t = value?.trim()
@@ -88,7 +89,7 @@ export function MemberHome() {
       })()
     : null
 
-  const sharedDocs = documents.filter((d) => d.memberVisible && d.status !== "archived" && d.kind !== "folder")
+  const sharedDocs = documents.filter(isMemberHomeVisible)
   const notices = [...data.notices].reverse()
 
   return (
